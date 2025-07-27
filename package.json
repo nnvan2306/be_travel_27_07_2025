@@ -1,0 +1,24 @@
+{
+  "name": "be-vtravel",
+  "version": "1.0.0",
+  "description": "<p align=\"center\"><a href=\"https://laravel.com\" target=\"_blank\"><img src=\"https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg\" width=\"400\" alt=\"Laravel Logo\"></a></p>",
+  "homepage": "https://github.com/nnvan2306/be_travel_27_07_2025#readme",
+  "bugs": {
+    "url": "https://github.com/nnvan2306/be_travel_27_07_2025/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/nnvan2306/be_travel_27_07_2025.git"
+  },
+  "license": "ISC",
+  "author": "",
+  "type": "commonjs",
+  "main": "index.js",
+  "directories": {
+    "test": "tests"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "dev": "php artisan serve"
+  }
+}
