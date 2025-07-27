@@ -266,7 +266,7 @@ class DestinationController extends Controller
 
         $destination = Destination::with('sections')->find($destination->destination_id);
         $destination->img_banner_url = $destination->img_banner ? asset('storage/' . $destination->img_banner) : null;
-        $destination->sections = $this->decodeSections($destination->sections);
+        $destination->sections = $this->decodeSections($destination->sections, $destination->album_id);
 
         return response()->json(['message' => 'Tạo điểm đến thành công', 'destination' => $destination], 201);
     }
@@ -456,7 +456,7 @@ class DestinationController extends Controller
         // Reload dữ liệu mới
         $destination = Destination::with('sections')->find($destination->destination_id);
         $destination->img_banner_url = $destination->img_banner ? asset('storage/' . $destination->img_banner) : null;
-        $destination->sections = $this->decodeSections($destination->sections);
+        $destination->sections = $this->decodeSections($destination->sections, $destination->album_id);
 
         return response()->json(['message' => 'Cập nhật điểm đến thành công', 'destination' => $destination]);
     }
@@ -512,7 +512,7 @@ class DestinationController extends Controller
             $destination->category->thumbnail = asset('storage/' . $destination->category->thumbnail);
         }
 
-        $destination->sections = $this->decodeSections($destination->sections);
+        $destination->sections = $this->decodeSections($destination->sections, $destination->album_id);
 
         return response()->json($destination);
     }
