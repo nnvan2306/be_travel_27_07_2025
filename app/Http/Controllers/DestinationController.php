@@ -321,9 +321,22 @@ class DestinationController extends Controller
         }
 
         // 2. Gallery Images
-        $galleryImages = null;
+        $galleryImages = [];
+        // Nếu có sections và có section type gallery thì lấy content (ảnh cũ)
+        if ($request->has('sections')) {
+            $sections = json_decode($request->input('sections'), true);
+            if (is_array($sections)) {
+                foreach ($sections as $sec) {
+                    if (isset($sec['type']) && $sec['type'] === "gallery") {
+                        $galleryImages = is_array($sec['content']) ? $sec['content'] : [];
+                        break;
+                    }
+                }
+            }
+        }
+
+        // Nếu có file upload mới, thêm vào cuối mảng ảnh cũ
         if ($request->hasFile('galleryImages')) {
-            $galleryImages = [];
             foreach ($request->file('galleryImages') as $file) {
                 $fileName = time() . '_' . $file->getClientOriginalName();
                 $storedPath = $file->storeAs("albums/{$albumId}", $fileName, 'public');
@@ -400,7 +413,7 @@ class DestinationController extends Controller
 
                 // Gắn ảnh nếu có
                 if ($type === 'gallery') {
-                    $section['content'] = $galleryImages ?: ($existingSections[$type]->content ?? []);
+                    $section['content'] = $galleryImages;
                 }
 
                 if ($type === 'lastImage') {
