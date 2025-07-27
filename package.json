@@ -19,6 +19,6 @@
   },
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "dev": "php artisan serve"
+    "dev": "php artisan storage:link && php artisan serve"
   }
 }
