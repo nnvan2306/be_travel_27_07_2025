@@ -11,9 +11,9 @@ use Illuminate\Support\Str;
 class DestinationController extends Controller
 {
 
-    private function decodeSections($sections)
+    private function decodeSections($sections, $album_id)
     {
-        return $sections->map(function ($section) {
+        return $sections->map(function ($section) use ($album_id) {
             // Nếu content là chuỗi JSON -> decode
             if (in_array($section->type, ['gallery', 'regionalDelicacies', 'highlight']) && is_string($section->content)) {
                 $section->content = json_decode($section->content, true);
@@ -27,15 +27,15 @@ class DestinationController extends Controller
 
             if ($section->type === 'lastImage') {
                 $section->image = $section->content
-                    ? asset('storage/albums/' . $section->destination_id . '/' . $section->content)
+                    ? asset('storage/albums/' . $album_id . '/' . $section->content)
                     : null;
                 unset($section->content);
             }
 
             if ($section->type === 'gallery' && is_array($section->content)) {
                 $content = $section->content;
-                $content = array_map(function ($img) use ($section) {
-                    return asset('storage/albums/' . $section->destination_id . '/' . $img);
+                $content = array_map(function ($img) use ($album_id) {
+                    return asset('storage/albums/' . $album_id . '/' . $img);
                 }, $content);
                 $section->content = $content;
             }
@@ -45,7 +45,7 @@ class DestinationController extends Controller
                     $content = $section->content; // ✅ lấy ra để sửa
                     foreach ($content['dishes'] as &$dish) {
                         if (!empty($dish['image'])) {
-                            $dish['image'] = asset('storage/albums/' . $section->destination_id . '/' . $dish['image']);
+                            $dish['image'] = asset('storage/albums/' . $album_id . '/' . $dish['image']);
                         }
                     }
                     $section->content = $content; // ✅ gán lại để tránh lỗi
@@ -55,7 +55,7 @@ class DestinationController extends Controller
                 $content = $section->content;
                 foreach ($content as &$highlightItem) {
                     if (!empty($highlightItem['image'])) {
-                        $highlightItem['image'] = asset('storage/albums/' . $section->destination_id . '/' . $highlightItem['image']);
+                        $highlightItem['image'] = asset('storage/albums/' . $album_id . '/' . $highlightItem['image']);
                     }
                 }
                 $section->content = $content;
@@ -71,7 +71,7 @@ class DestinationController extends Controller
             ->get()
             ->map(function ($dest) {
                 $dest->img_banner_url = $dest->img_banner ? asset('storage/' . $dest->img_banner) : null;
-                $dest->sections = $this->decodeSections($dest->sections);
+                $dest->sections = $this->decodeSections($dest->sections, $dest->album_id);
                 return $dest;
             });
 
@@ -98,7 +98,7 @@ class DestinationController extends Controller
                 'category'
             ])
             ->find($id);
-
+            
         if (!$destination) {
             return response()->json(['message' => 'Không tìm thấy điểm đến'], 404);
         }
@@ -120,7 +120,7 @@ class DestinationController extends Controller
             $destination->category->thumbnail = asset('storage/' . $destination->category->thumbnail);
         }
 
-        $destination->sections = $this->decodeSections($destination->sections);
+        $destination->sections = $this->decodeSections($destination->sections, $destination->album_id);
 
         return response()->json($destination);
     }
