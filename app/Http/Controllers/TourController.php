@@ -17,14 +17,28 @@ class TourController extends Controller
     const STATUS_INACTIVE = 'inactive';
 
     // Danh sách tour
-    public function index()
-    {
-        $tours = Tour::with(['album.images', 'category', 'destinations', 'schedules', 'guide', 'busRoute'])
-            ->where('is_deleted', self::STATUS_ACTIVE)
-            ->get();
+   public function index(Request $request)
+{
+    $query = Tour::with(['album.images', 'category', 'destinations', 'schedules', 'guide', 'busRoute'])
+        ->where('is_deleted', self::STATUS_ACTIVE);
 
-        return response()->json($tours);
+    // Lọc theo category_id nếu có
+    if ($request->has('category_id')) {
+        $query->where('category_id', $request->category_id);
     }
+
+    // Lọc theo price nếu có (ví dụ: price_min, price_max)
+    if ($request->has('price_min')) {
+        $query->where('price', '>=', $request->price_min);
+    }
+    if ($request->has('price_max')) {
+        $query->where('price', '<=', $request->price_max);
+    }
+
+    $tours = $query->get();
+
+    return response()->json($tours);
+}
 
     // Tạo mới tour
     public function store(Request $request)
