@@ -25,7 +25,14 @@ class Tour extends Model
     {
         return $this->belongsTo(TourCategory::class, 'category_id');
     }
-
+    public function guide()
+    {
+        return $this->belongsTo(Guide::class, 'guide_id', 'guide_id');
+    }
+    public function busRoute()
+    {
+        return $this->belongsTo(BusRoute::class, 'bus_route_id', 'bus_route_id');
+    }
     public function album()
     {
         return $this->belongsTo(Album::class, 'album_id', 'album_id');
