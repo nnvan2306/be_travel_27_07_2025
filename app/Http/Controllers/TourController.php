@@ -184,7 +184,7 @@ class TourController extends Controller
         }
 
         $request->validate([
-            'category_id' => 'exists:destination_categories,category_id',
+            'category_id' => 'exists:tour_categories,category_id',
             'tour_name' => 'string|max:255',
             'description' => 'nullable|string',
             'itinerary' => 'nullable|string',
