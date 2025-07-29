@@ -20,6 +20,6 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "dev": "php artisan storage:link && php artisan serve",
-    "db:push": "php artisan make:migration fix_tours_category_foreign_key"
+    "db:push": "php artisan migrate"
   }
 }

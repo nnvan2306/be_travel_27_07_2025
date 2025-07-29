@@ -150,13 +150,28 @@ class TourController extends Controller
     // Xem chi tiết
     public function show($id)
     {
-        $tour = Tour::with(['category', 'album.images', 'destinations', 'schedules', 'guide', 'busRoute'])->findOrFail($id);
+        $tour = Tour::with([
+            'category',
+            'album.images',
+            'destinations',
+            'schedules.destination',
+            'guide',
+            'busRoute'
+        ])->findOrFail($id);
 
         if ($tour->is_deleted === self::STATUS_INACTIVE) {
             return response()->json(['message' => 'Tour đã bị xoá'], 404);
         }
 
-        return response()->json($tour);
+        $schedules = $tour->schedules->map(function ($schedule) {
+            $data = $schedule->toArray();
+            return $data;
+        });
+
+        $tourArray = $tour->toArray();
+        $tourArray['schedules'] = $schedules;
+
+        return response()->json($tourArray);
     }
 
     // Cập nhật tour

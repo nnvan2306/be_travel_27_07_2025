@@ -102,7 +102,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::apiResource('tours', TourController::class)->only(['store', 'update', 'destroy']);
 
     // Tour Categories
-    Route::apiResource('tour-categories', TourCategoryController::class)->only(['store', 'update', 'destroy']);
+    Route::apiResource('tour-categories', TourCategoryController::class)->only(['index', 'store', 'update', 'destroy']);
     Route::post('/tour-categories/{id}/soft-delete', [TourCategoryController::class, 'softDelete']);
 
     // Albums
