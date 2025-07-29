@@ -44,7 +44,7 @@ class TourController extends Controller
     public function store(Request $request)
     {
         $request->validate([
-            'category_id' => 'required|exists:destination_categories,category_id',
+            'category_id' => 'required|exists:tour_categories,category_id',
             'tour_name' => 'required|string|max:255',
             'description' => 'nullable|string',
             'itinerary' => 'nullable|string',
