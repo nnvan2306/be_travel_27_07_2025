@@ -57,7 +57,6 @@ class BookingController extends Controller
             'motorbike_id' => 'nullable|exists:motorbikes,motorbike_id',
             'quantity' => 'required|integer|min:1',
             'start_date' => 'required|date',
-            'end_date' => 'required|date|after_or_equal:start_date',
             'total_price' => 'required|numeric|min:0',
             'payment_method' => 'nullable|in:COD,bank_transfer,VNPay,MoMo',
             'status' => 'nullable|in:pending,confirmed,cancelled,completed',
