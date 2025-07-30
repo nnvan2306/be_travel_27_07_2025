@@ -58,7 +58,7 @@ class BookingController extends Controller
             'quantity' => 'required|integer|min:1',
             'start_date' => 'required|date',
             'total_price' => 'required|numeric|min:0',
-            'payment_method' => 'nullable|in:COD,bank_transfer,VNPay,MoMo',
+            'payment_method_id' => 'nullable|in:COD,bank_transfer,VNPay,MoMo',
             'status' => 'nullable|in:pending,confirmed,cancelled,completed',
             'cancel_reason' => 'nullable|string',
         ]);
