@@ -70,6 +70,62 @@ class BookingController extends Controller
 
         $booking = Booking::create($request->all());
 
+        // Nếu chọn VNPay thì trả về link thanh toán
+        if ($request->payment_method === 'VNPay') {
+            $vnp_Url = config('services.vnpay.url');
+            $vnp_Returnurl = config('services.vnpay.return_url');
+            $vnp_TmnCode = config('services.vnpay.tmncode');
+            $vnp_HashSecret = config('services.vnpay.hash_secret');
+
+            $vnp_TxnRef = $booking->booking_id; // Sử dụng booking_id làm mã đơn hàng
+            $vnp_OrderInfo = 'Thanh toán booking VTravel #' . $booking->booking_id;
+            $vnp_OrderType = 'other';
+            $vnp_Amount = $booking->total_price * 100; // VNPay yêu cầu x100
+            $vnp_Locale = 'vn';
+            $vnp_BankCode = $request->bank_code ?? '';
+            $vnp_IpAddr = $request->ip();
+
+            $inputData = array(
+                "vnp_Version" => "2.1.0",
+                "vnp_TmnCode" => $vnp_TmnCode,
+                "vnp_Amount" => $vnp_Amount,
+                "vnp_Command" => "pay",
+                "vnp_CreateDate" => date('YmdHis'),
+                "vnp_CurrCode" => "VND",
+                "vnp_IpAddr" => $vnp_IpAddr,
+                "vnp_Locale" => $vnp_Locale,
+                "vnp_OrderInfo" => $vnp_OrderInfo,
+                "vnp_OrderType" => $vnp_OrderType,
+                "vnp_ReturnUrl" => $vnp_Returnurl,
+                "vnp_TxnRef" => $vnp_TxnRef,
+            );
+            if (!empty($vnp_BankCode)) {
+                $inputData['vnp_BankCode'] = $vnp_BankCode;
+            }
+            ksort($inputData);
+            $query = [];
+            foreach ($inputData as $key => $value) {
+                $query[] = urlencode($key) . "=" . urlencode($value);
+            }
+            $hashdata = urldecode(http_build_query($inputData));
+            $vnp_SecureHash = hash_hmac('sha512', $hashdata, $vnp_HashSecret);
+            $vnp_Url .= "?" . implode('&', $query) . '&vnp_SecureHash=' . $vnp_SecureHash;
+
+            return response()->json([
+                'message' => 'Tạo booking thành công, chuyển sang thanh toán VNPay',
+                'payment_url' => $vnp_Url,
+                'booking' => $booking->load([
+                    'user',
+                    'tour',
+                    'guide',
+                    'hotel',
+                    'busRoute',
+                    'motorbike',
+                    'customTour'
+                ])
+            ], 201);
+        }
+
         return response()->json([
             'message' => 'Tạo booking thành công',
             'booking' => $booking->load([
