@@ -20,6 +20,8 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "dev": "php artisan storage:link --force && php artisan serve",
+    "db:fresh": "php artisan migrate:fresh",
+    "db:seed": "php artisan db:seed",
     "db:push": "php artisan migrate"
   }
 }

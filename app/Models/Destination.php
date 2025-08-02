@@ -20,6 +20,7 @@ class Destination extends Model
         'area',
         'img_banner',
         'is_deleted',
+        'price',
         'slug',
     ];
 

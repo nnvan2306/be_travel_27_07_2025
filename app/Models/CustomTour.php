@@ -13,13 +13,10 @@ class CustomTour extends Model
 
     protected $fillable = [
         'user_id',
-        'destination',
-        'start_date',
-        'end_date',
-        'num_people',
+        'destination_id',
+        'vehicle',
+        'duration',
         'note',
-        'status',
-        'is_deleted'
     ];
 
     // Quan hệ với User
@@ -28,15 +25,9 @@ class CustomTour extends Model
         return $this->belongsTo(User::class, 'user_id', 'id');
     }
 
-    // Quan hệ với CustomTourDetail
-    public function details()
+    // Quan hệ với Destination
+    public function destination()
     {
-        return $this->hasMany(CustomTourDetail::class, 'custom_tour_id', 'custom_tour_id');
-    }
-
-    // Quan hệ với CustomTourSchedule (nếu có)
-    public function schedules()
-    {
-        return $this->hasMany(CustomTourSchedule::class, 'custom_tour_id', 'custom_tour_id');
+        return $this->belongsTo(Destination::class, 'destination_id', 'destination_id');
     }
 }

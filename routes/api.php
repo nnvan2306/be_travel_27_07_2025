@@ -58,7 +58,7 @@ Route::get('/guides', [GuideController::class, 'index']);
 
 // VNPay callback (không cần auth vì VNPay gọi trực tiếp)
 Route::get('vnpay/return', [BookingController::class, 'vnpayReturn']);
-
+Route::get('/bookings/all', [BookingController::class, 'getAllBookings']);
 
 
 // ================= AUTHENTICATED USER ROUTES =================
@@ -74,6 +74,7 @@ Route::middleware('auth:sanctum')->group(function () {
     // Bookings
     Route::apiResource('bookings', BookingController::class)->only(['index', 'store', 'show']);
     Route::get('/bookings/me/my-booking', [BookingController::class, 'myBooking']);
+    Route::put('/bookings/{id}/status', [BookingController::class, 'updateStatus']);
     
 
     // Favorites
