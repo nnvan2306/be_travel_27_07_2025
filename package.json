@@ -19,7 +19,7 @@
   },
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "dev": "php artisan storage:link && php artisan serve",
+    "dev": "php artisan storage:link --force && php artisan serve",
     "db:push": "php artisan migrate"
   }
 }

@@ -131,7 +131,7 @@ class DestinationController extends Controller
             'category_id' => 'nullable|numeric',
             'description' => 'nullable|string',
             'area' => 'nullable|string|max:100',
-            'imgBanner' => 'nullable|image|mimes:jpeg,png,jpg,gif,webp|max:5120',
+            'imgBanner' => 'nullable|image|mimes:jpeg,png,jpg,gif,webp|max:51200',
             'sections' => 'nullable',
         ]);
 
