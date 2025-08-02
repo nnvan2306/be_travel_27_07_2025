@@ -19,7 +19,7 @@ return [
 
     'allowed_methods' => ['*'],
 
-    'allowed_origins' => ['http://localhost:5173', 'http://localhost:3000', 'https://68bd305f1fca.ngrok-free.app'],
+    'allowed_origins' => ['http://localhost:5173', 'http://localhost:3000', 'https://68bd305f1fca.ngrok-free.app', 'https://cms-bss.fstack.io.vn'],
 
     'allowed_origins_patterns' => [],
 
