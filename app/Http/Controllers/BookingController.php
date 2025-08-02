@@ -24,7 +24,7 @@ class BookingController extends Controller
             'customTour.destination',
             'customTour.user',
             'customTour.destination.category',
-            'customTour.destination.album.albumImages',
+            'customTour.destination.album.images',
             'customTour.destination.sections'
         ])->active()->get();
 
@@ -50,7 +50,7 @@ class BookingController extends Controller
             'customTour.destination',
             'customTour.user',
             'customTour.destination.category',
-            'customTour.destination.album.albumImages',
+            'customTour.destination.album.images',
             'customTour.destination.sections'
         ])->find($id);
 
@@ -80,7 +80,7 @@ class BookingController extends Controller
             'customTour.destination',
             'customTour.user',
             'customTour.destination.category',
-            'customTour.destination.album.albumImages',
+            'customTour.destination.album.images',
             'customTour.destination.sections'
         ])
         ->where('user_id', $user->id)
@@ -109,7 +109,7 @@ class BookingController extends Controller
             'customTour.destination',
             'customTour.user',
             'customTour.destination.category',
-            'customTour.destination.album.albumImages',
+            'customTour.destination.album.images',
             'customTour.destination.sections'
         ])->get();
 
