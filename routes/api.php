@@ -73,6 +73,7 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // Bookings
     Route::apiResource('bookings', BookingController::class)->only(['index', 'store', 'show']);
+    Route::get('/bookings/me/my-booking', [BookingController::class, 'myBooking']);
     
 
     // Favorites

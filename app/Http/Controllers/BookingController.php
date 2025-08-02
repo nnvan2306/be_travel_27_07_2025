@@ -44,6 +44,20 @@ class BookingController extends Controller
         return response()->json($booking);
     }
 
+    // Lấy danh sách booking của user đang đăng nhập
+    public function myBooking(Request $request)
+    {
+        $user = $request->user();
+        $bookings = Booking::with([
+            'user', 'tour', 'guide', 'hotel', 'busRoute', 'motorbike', 'customTour'
+        ])
+        ->where('user_id', $user->id)
+        ->where('is_deleted', 'active')
+        ->get();
+
+        return response()->json($bookings);
+    }
+
     // Tạo booking mới
     public function store(Request $request)
     {
