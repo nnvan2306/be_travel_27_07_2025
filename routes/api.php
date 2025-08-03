@@ -60,6 +60,43 @@ Route::get('/guides', [GuideController::class, 'index']);
 Route::get('vnpay/return', [BookingController::class, 'vnpayReturn']);
 Route::get('/bookings/all', [BookingController::class, 'getAllBookings']);
 
+// Test route for file upload
+Route::post('/test-tour-upload', function (Request $request) {
+    $response = [
+        'message' => 'Test tour upload',
+        'has_image' => $request->hasFile('image'),
+        'has_images' => $request->hasFile('images'),
+        'all_files' => array_keys($request->allFiles()),
+        'content_type' => $request->header('Content-Type'),
+        'all_data' => $request->all()
+    ];
+    
+    if ($request->hasFile('image')) {
+        $file = $request->file('image');
+        $response['image_info'] = [
+            'original_name' => $file->getClientOriginalName(),
+            'size' => $file->getSize(),
+            'mime_type' => $file->getMimeType(),
+            'extension' => $file->getClientOriginalExtension()
+        ];
+    }
+    
+    if ($request->hasFile('images')) {
+        $response['images_info'] = [];
+        foreach ($request->file('images') as $index => $file) {
+            $response['images_info'][] = [
+                'index' => $index,
+                'original_name' => $file->getClientOriginalName(),
+                'size' => $file->getSize(),
+                'mime_type' => $file->getMimeType(),
+                'extension' => $file->getClientOriginalExtension()
+            ];
+        }
+    }
+    
+    return response()->json($response);
+});
+
 
 // ================= AUTHENTICATED USER ROUTES =================
 Route::middleware('auth:sanctum')->group(function () {

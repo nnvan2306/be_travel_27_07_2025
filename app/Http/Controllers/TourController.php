@@ -10,6 +10,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 class TourController extends Controller
 {
@@ -77,7 +78,14 @@ class TourController extends Controller
             ]);
 
             // Lưu ảnh chính
-            $imagePath = $request->file('image')->store('tours', 'public');
+            try {
+                $originalName = $request->file('image')->getClientOriginalName();
+                $sanitizedName = preg_replace('/[^a-zA-Z0-9._-]/', '_', $originalName);
+                $fileName = time() . '_' . $sanitizedName;
+                $imagePath = $request->file('image')->storeAs('tours', $fileName, 'public');
+            } catch (\Exception $e) {
+                return response()->json(['message' => 'Lỗi khi upload ảnh chính: ' . $e->getMessage()], 500);
+            }
 
             // Tạo slug duy nhất
             $slug = Str::slug($request->tour_name);
@@ -105,14 +113,23 @@ class TourController extends Controller
 
             // Lưu ảnh phụ
             if ($request->hasFile('images')) {
-                foreach ($request->file('images') as $img) {
-                    $path = $img->store('album_images', 'public');
-                    AlbumImage::create([
-                        'album_id' => $album->album_id,
-                        'image_url' => $path,
-                        'caption' => null,
-                        'is_deleted' => self::STATUS_ACTIVE,
-                    ]);
+                try {
+                    foreach ($request->file('images') as $img) {
+                        // Sanitize tên file
+                        $originalName = $img->getClientOriginalName();
+                        $sanitizedName = preg_replace('/[^a-zA-Z0-9._-]/', '_', $originalName);
+                        $fileName = time() . '_' . $sanitizedName;
+                        
+                        $path = $img->storeAs('album_images', $fileName, 'public');
+                        AlbumImage::create([
+                            'album_id' => $album->album_id,
+                            'image_url' => $path,
+                            'caption' => null,
+                            'is_deleted' => self::STATUS_ACTIVE,
+                        ]);
+                    }
+                } catch (\Exception $e) {
+                    return response()->json(['message' => 'Lỗi khi upload ảnh phụ: ' . $e->getMessage()], 500);
                 }
             }
 
@@ -209,12 +226,43 @@ class TourController extends Controller
 
         DB::beginTransaction();
         try {
+            // Debug: Log thông tin request
+            Log::info('Tour update request', [
+                'has_image' => $request->hasFile('image'),
+                'has_images' => $request->hasFile('images'),
+                'all_files' => $request->allFiles(),
+                'content_type' => $request->header('Content-Type')
+            ]);
+
             // Cập nhật ảnh chính
             if ($request->hasFile('image')) {
-                if ($tour->image && Storage::disk('public')->exists($tour->image)) {
-                    Storage::disk('public')->delete($tour->image);
+                try {
+                    Log::info('Processing main image', [
+                        'original_name' => $request->file('image')->getClientOriginalName(),
+                        'size' => $request->file('image')->getSize(),
+                        'mime_type' => $request->file('image')->getMimeType()
+                    ]);
+
+                    // Xóa ảnh cũ nếu tồn tại
+                    if ($tour->image && Storage::disk('public')->exists($tour->image)) {
+                        Storage::disk('public')->delete($tour->image);
+                        Log::info('Deleted old image', ['path' => $tour->image]);
+                    }
+                    
+                    // Sanitize tên file
+                    $originalName = $request->file('image')->getClientOriginalName();
+                    $sanitizedName = preg_replace('/[^a-zA-Z0-9._-]/', '_', $originalName);
+                    $fileName = time() . '_' . $sanitizedName;
+                    
+                    // Lưu ảnh mới
+                    $imagePath = $request->file('image')->storeAs('tours', $fileName, 'public');
+                    $tour->image = $imagePath;
+                    
+                    Log::info('Main image uploaded successfully', ['path' => $imagePath]);
+                } catch (\Exception $e) {
+                    Log::error('Error uploading main image', ['error' => $e->getMessage()]);
+                    return response()->json(['message' => 'Lỗi khi upload ảnh chính: ' . $e->getMessage()], 500);
                 }
-                $tour->image = $request->file('image')->store('tours', 'public');
             }
 
             // Cập nhật slug nếu tour_name thay đổi
@@ -247,20 +295,47 @@ class TourController extends Controller
 
             // Cập nhật ảnh phụ
             if ($request->hasFile('images') && $tour->album) {
-                foreach ($tour->album->images as $img) {
-                    if (Storage::disk('public')->exists($img->image_url)) {
-                        Storage::disk('public')->delete($img->image_url);
-                    }
-                    $img->delete();
-                }
-                foreach ($request->file('images') as $img) {
-                    $path = $img->store('album_images', 'public');
-                    AlbumImage::create([
-                        'album_id' => $tour->album_id,
-                        'image_url' => $path,
-                        'caption' => null,
-                        'is_deleted' => self::STATUS_ACTIVE,
+                try {
+                    Log::info('Processing additional images', [
+                        'count' => count($request->file('images'))
                     ]);
+
+                    // Xóa tất cả ảnh cũ
+                    foreach ($tour->album->images as $img) {
+                        if (Storage::disk('public')->exists($img->image_url)) {
+                            Storage::disk('public')->delete($img->image_url);
+                            Log::info('Deleted old album image', ['path' => $img->image_url]);
+                        }
+                        $img->delete();
+                    }
+                    
+                    // Lưu ảnh mới
+                    foreach ($request->file('images') as $index => $img) {
+                        Log::info('Processing album image', [
+                            'index' => $index,
+                            'original_name' => $img->getClientOriginalName(),
+                            'size' => $img->getSize(),
+                            'mime_type' => $img->getMimeType()
+                        ]);
+
+                        // Sanitize tên file
+                        $originalName = $img->getClientOriginalName();
+                        $sanitizedName = preg_replace('/[^a-zA-Z0-9._-]/', '_', $originalName);
+                        $fileName = time() . '_' . $index . '_' . $sanitizedName;
+                        
+                        $path = $img->storeAs('album_images', $fileName, 'public');
+                        AlbumImage::create([
+                            'album_id' => $tour->album_id,
+                            'image_url' => $path,
+                            'caption' => null,
+                            'is_deleted' => self::STATUS_ACTIVE,
+                        ]);
+                        
+                        Log::info('Album image uploaded successfully', ['path' => $path]);
+                    }
+                } catch (\Exception $e) {
+                    Log::error('Error uploading album images', ['error' => $e->getMessage()]);
+                    return response()->json(['message' => 'Lỗi khi upload ảnh phụ: ' . $e->getMessage()], 500);
                 }
             }
 
