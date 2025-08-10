@@ -102,6 +102,11 @@ Route::post('/test-tour-upload', function (Request $request) {
     
     return response()->json($response);
 });
+// Reviews
+    Route::prefix('reviews')->group(function () {
+        Route::post('/', [ReviewController::class, 'store']);
+        Route::put('/{id}', [ReviewController::class, 'update']);
+    });
 
 
 // ================= AUTHENTICATED USER ROUTES =================
@@ -127,11 +132,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::delete('/{id}', [FavoriteController::class, 'destroy']);
     });
 
-    // Reviews
-    Route::prefix('reviews')->group(function () {
-        Route::post('/', [ReviewController::class, 'store']);
-        Route::put('/{id}', [ReviewController::class, 'update']);
-    });
+    
 
 });
 
