@@ -51,7 +51,31 @@ class BlogController extends Controller
      */
     public function create()
     {
-        //
+        try {
+            return response()->json([
+                'message' => 'Lấy form tạo blog thành công',
+                'data' => [
+                    'blog' => [
+                        'title' => '',
+                        'description' => '',
+                        'markdown' => '',
+                        'location' => '',
+                        'thumbnail' => null,
+                        'status' => 'published'
+                    ],
+                    'validation_rules' => [
+                        'title' => 'required|string|max:255',
+                        'description' => 'nullable|string',
+                        'markdown' => 'required|string',
+                        'location' => 'nullable|string|max:255',
+                        'thumbnail' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048',
+                        'status' => 'nullable|in:published,draft'
+                    ]
+                ]
+            ]);
+        } catch (\Exception $e) {
+            return response()->json(['message' => 'Lỗi khi lấy form tạo blog: ' . $e->getMessage()], 500);
+        }
     }
 
     /**
@@ -156,7 +180,30 @@ class BlogController extends Controller
      */
     public function edit(string $id)
     {
-        //
+        try {
+            $blog = Blog::find($id);
+
+            if (!$blog) {
+                return response()->json(['message' => 'Blog không tồn tại'], 404);
+            }
+
+            return response()->json([
+                'message' => 'Lấy form chỉnh sửa blog thành công',
+                'data' => [
+                    'blog' => $blog,
+                    'validation_rules' => [
+                        'title' => 'sometimes|required|string|max:255',
+                        'description' => 'nullable|string',
+                        'markdown' => 'sometimes|required|string',
+                        'location' => 'nullable|string|max:255',
+                        'thumbnail' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048',
+                        'status' => 'nullable|in:published,draft'
+                    ]
+                ]
+            ]);
+        } catch (\Exception $e) {
+            return response()->json(['message' => 'Lỗi khi lấy form chỉnh sửa blog: ' . $e->getMessage()], 500);
+        }
     }
 
     /**
@@ -170,10 +217,11 @@ class BlogController extends Controller
             return response()->json(['message' => 'Blog không tồn tại'], 404);
         }
 
+        // Log request data để debug
+        \Log::info('Update blog request data:', $request->all());
+
         $validator = Validator::make($request->all(), [
-            'title' => 'sometimes|required|string|max:255',
             'description' => 'nullable|string',
-            'markdown' => 'sometimes|required|string',
             'location' => 'nullable|string|max:255',
             'thumbnail' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048',
             'status' => 'nullable|in:published,draft'
@@ -187,12 +235,16 @@ class BlogController extends Controller
         }
 
         try {
+            // Lấy và kiểm tra dữ liệu
             $blogData = $request->only(['title', 'description', 'markdown', 'location', 'status']);
 
-            // Xử lý thumbnail
+            // Log data trước khi update
+            \Log::info('Blog data before update:', $blogData);
+
+            // Xử lý thumbnail nếu có
             if ($request->hasFile('thumbnail')) {
                 try {
-                    // Xóa thumbnail cũ
+                    // Xóa thumbnail cũ nếu có
                     if ($blog->thumbnail && Storage::disk('public')->exists($blog->thumbnail)) {
                         Storage::disk('public')->delete($blog->thumbnail);
                     }
@@ -203,20 +255,35 @@ class BlogController extends Controller
                     $thumbnailPath = $request->file('thumbnail')->storeAs('blogs', $fileName, 'public');
                     $blogData['thumbnail'] = $thumbnailPath;
                 } catch (\Exception $e) {
+                    \Log::error('Thumbnail upload error: ' . $e->getMessage());
                     return response()->json(['message' => 'Lỗi khi upload thumbnail: ' . $e->getMessage()], 500);
                 }
             }
 
             // Cập nhật slug nếu title thay đổi
-            if ($request->has('title') && $request->title !== $blog->title) {
-                $slug = Str::slug($request->title);
-                if (Blog::where('slug', $slug)->where('id', '!=', $blog->id)->exists()) {
-                    $slug .= '-' . uniqid();
+            if (isset($blogData['title']) && $blogData['title'] !== $blog->title) {
+                $slug = Str::slug($blogData['title']);
+                $originalSlug = $slug;
+                $counter = 1;
+
+                while (Blog::where('slug', $slug)->where('id', '!=', $blog->id)->exists()) {
+                    $slug = $originalSlug . '-' . $counter++;
                 }
                 $blogData['slug'] = $slug;
             }
 
-            $blog->update($blogData);
+            // Thực hiện update và kiểm tra kết quả
+            $updated = $blog->update($blogData);
+
+            if (!$updated) {
+                throw new \Exception('Không thể cập nhật blog');
+            }
+
+            // Refresh model để lấy data mới nhất
+            $blog = $blog->fresh();
+
+            // Log kết quả update
+            \Log::info('Blog updated successfully:', $blog->toArray());
 
             return response()->json([
                 'message' => 'Cập nhật blog thành công',
@@ -224,7 +291,100 @@ class BlogController extends Controller
             ]);
 
         } catch (\Exception $e) {
-            return response()->json(['message' => 'Lỗi khi cập nhật blog: ' . $e->getMessage()], 500);
+            \Log::error('Blog update error: ' . $e->getMessage());
+            return response()->json([
+                'message' => 'Lỗi khi cập nhật blog: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+
+    public function updateWithFiles(Request $request, $id)
+    {
+        $blog = Blog::find($id);
+
+        if (!$blog) {
+            return response()->json(['message' => 'Blog không tồn tại'], 404);
+        }
+
+        // Log request data để debug
+        \Log::info('Update blog request data:', $request->all());
+
+        $validator = Validator::make($request->all(), [
+            'description' => 'nullable|string',
+            'location' => 'nullable|string|max:255',
+            'thumbnail' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048',
+            'status' => 'nullable|in:published,draft'
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'message' => 'Dữ liệu không hợp lệ',
+                'errors' => $validator->errors()
+            ], 422);
+        }
+
+        try {
+            // Lấy và kiểm tra dữ liệu
+            $blogData = $request->only(['title', 'description', 'markdown', 'location', 'status']);
+
+            // Log data trước khi update
+            \Log::info('Blog data before update:', $blogData);
+
+            // Xử lý thumbnail nếu có
+            if ($request->hasFile('thumbnail')) {
+                try {
+                    // Xóa thumbnail cũ nếu có
+                    if ($blog->thumbnail && Storage::disk('public')->exists($blog->thumbnail)) {
+                        Storage::disk('public')->delete($blog->thumbnail);
+                    }
+
+                    $originalName = $request->file('thumbnail')->getClientOriginalName();
+                    $sanitizedName = preg_replace('/[^a-zA-Z0-9._-]/', '_', $originalName);
+                    $fileName = time() . '_' . $sanitizedName;
+                    $thumbnailPath = $request->file('thumbnail')->storeAs('blogs', $fileName, 'public');
+                    $blogData['thumbnail'] = $thumbnailPath;
+                } catch (\Exception $e) {
+                    \Log::error('Thumbnail upload error: ' . $e->getMessage());
+                    return response()->json(['message' => 'Lỗi khi upload thumbnail: ' . $e->getMessage()], 500);
+                }
+            }
+
+            // Cập nhật slug nếu title thay đổi
+            if (isset($blogData['title']) && $blogData['title'] !== $blog->title) {
+                $slug = Str::slug($blogData['title']);
+                $originalSlug = $slug;
+                $counter = 1;
+
+                while (Blog::where('slug', $slug)->where('id', '!=', $blog->id)->exists()) {
+                    $slug = $originalSlug . '-' . $counter++;
+                }
+                $blogData['slug'] = $slug;
+            }
+
+            // Thực hiện update và kiểm tra kết quả
+            $updated = $blog->update($blogData);
+
+            if (!$updated) {
+                throw new \Exception('Không thể cập nhật blog');
+            }
+
+            // Refresh model để lấy data mới nhất
+            $blog = $blog->fresh();
+
+            // Log kết quả update
+            \Log::info('Blog updated successfully:', $blog->toArray());
+
+            return response()->json([
+                'message' => 'Cập nhật blog thành công',
+                'data' => $blog
+            ]);
+
+        } catch (\Exception $e) {
+            \Log::error('Blog update error: ' . $e->getMessage());
+            return response()->json([
+                'message' => 'Lỗi khi cập nhật blog: ' . $e->getMessage()
+            ], 500);
         }
     }
 

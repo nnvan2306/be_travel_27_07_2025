@@ -83,9 +83,9 @@ class BookingController extends Controller
             'customTour.destination.album.images',
             'customTour.destination.sections'
         ])
-        ->where('user_id', $user->id)
-        ->where('is_deleted', 'active')
-        ->get();
+            ->where('user_id', $user->id)
+            ->where('is_deleted', 'active')
+            ->get();
 
         return response()->json([
             'message' => 'Lấy danh sách booking của bạn thành công',
@@ -178,6 +178,24 @@ class BookingController extends Controller
             return response()->json(['message' => 'Dữ liệu không hợp lệ', 'errors' => $validator->errors()], 422);
         }
 
+        // Kiểm tra xem hướng dẫn viên đã được đặt vào ngày này chưa
+        if ($request->guide_id) {
+            $requestDate = $request->start_date;
+
+            // Tìm các booking có cùng hướng dẫn viên và ngày
+            $existingBookings = Booking::where('guide_id', $request->guide_id)
+                ->where('start_date', $requestDate)
+                ->where('status', '!=', 'cancelled')  // Không tính các booking đã hủy
+                ->where('is_deleted', '=', 'active')  // Chỉ tính các booking đang hoạt động
+                ->count();
+
+            if ($existingBookings > 0) {
+                return response()->json([
+                    'message' => 'Hướng dẫn viên này đã được đặt vào ngày ' . date('d/m/Y', strtotime($requestDate)) . '. Vui lòng chọn hướng dẫn viên khác hoặc ngày khác.'
+                ], 422);
+            }
+        }
+
         // Xử lý dataCustom nếu có
         $customTourId = null;
         if ($request->has('dataCustom') && !empty($request->dataCustom)) {
@@ -209,7 +227,7 @@ class BookingController extends Controller
             $vnp_TxnRef = $booking->booking_id; // Sử dụng booking_id làm mã đơn hàng
             $vnp_OrderInfo = 'Thanh toán booking VTravel #' . $booking->booking_id;
             $vnp_OrderType = 'other';
-            $vnp_Amount = (int)($booking->total_price * 100); // VNPay yêu cầu x100 và phải là integer
+            $vnp_Amount = (int) ($booking->total_price * 100); // VNPay yêu cầu x100 và phải là integer
             $vnp_Locale = 'vn';
             $vnp_BankCode = $request->bank_code ?? '';
             $vnp_IpAddr = $request->ip();
@@ -366,14 +384,14 @@ class BookingController extends Controller
         $vnp_HashSecret = 'ST178S34C3LKXR630DM8L7FSL6C99K8Y';
         $inputData = $request->all();
         $vnp_SecureHash = $inputData['vnp_SecureHash'] ?? '';
-        
+
         // Loại bỏ vnp_SecureHash và vnp_SecureHashType khỏi inputData
         unset($inputData['vnp_SecureHash']);
         unset($inputData['vnp_SecureHashType']);
-        
+
         // Sắp xếp dữ liệu theo key
         ksort($inputData);
-        
+
         // Tạo chuỗi hash data
         $hashData = http_build_query($inputData);
         $secureHash = hash_hmac('sha512', $hashData, $vnp_HashSecret);
@@ -392,7 +410,7 @@ class BookingController extends Controller
 
             // Tìm booking theo booking_id với relationship
             $booking = Booking::with(['tour', 'user'])->find($vnp_TxnRef);
-            
+
             if (!$booking) {
                 // Chuyển hướng về frontend với thông báo lỗi
                 return redirect()->away(config('app.frontend_url', 'http://localhost:3000') . '/booking-success?' . http_build_query([
@@ -448,6 +466,38 @@ class BookingController extends Controller
                 'status' => 'invalid_signature',
                 'message' => 'Chữ ký không hợp lệ!'
             ]));
+        }
+    }
+
+    /**
+     * Kiểm tra xem người dùng đã từng đặt tour cụ thể hay chưa
+     *
+     * @param int $userId ID của người dùng
+     * @param int $tourId ID của tour
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function checkUserBookedTour($userId, $tourId)
+    {
+        try {
+            // Kiểm tra có booking nào thỏa điều kiện không
+            $hasBooked = Booking::where('user_id', $userId)
+                ->where('tour_id', $tourId)
+                ->where(function ($query) {
+                    // Chỉ tính các booking đã thanh toán hoặc hoàn thành
+                    $query->whereIn('status', ['paid', 'completed', 'confirmed']);
+                })
+                ->exists();
+
+            return response()->json([
+                'success' => true,
+                'hasBooked' => $hasBooked
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Đã có lỗi khi kiểm tra thông tin booking: ' . $e->getMessage(),
+                'hasBooked' => false
+            ], 500);
         }
     }
 }

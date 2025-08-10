@@ -22,7 +22,9 @@ use App\Http\Controllers\{
     BusRouteController,
     MotorbikeController,
     TourDestinationController,
-    TourScheduleController
+    TourScheduleController,
+    BlogController,
+    DashboardController
 };
 
 // ================= PUBLIC ROUTES =================
@@ -42,6 +44,7 @@ Route::get('/destinations', [DestinationController::class, 'index']);
 Route::get('/destinations/{id}', [DestinationController::class, 'show']);
 Route::get('/destinations/highlights', [DestinationController::class, 'highlights']);
 Route::get('/destinations/slug/{slug}', [DestinationController::class, 'showBySlug']);
+Route::get('/bookings/check-user-tour/{user_id}/{tour_id}', [BookingController::class, 'checkUserBookedTour']);
 
 Route::get('/destination-categories', [DestinationCategoryController::class, 'index']);
 
@@ -61,10 +64,11 @@ Route::get('vnpay/return', [BookingController::class, 'vnpayReturn']);
 Route::get('/bookings/all', [BookingController::class, 'getAllBookings']);
 
 // Blog routes (không cần authentication)
-Route::apiResource('blogs', BlogController::class);
+Route::apiResource('blogs', BlogController::class, );
 Route::get('/blogs/slug/{slug}', [BlogController::class, 'showBySlug']);
 Route::get('/blogs/published', [BlogController::class, 'published']);
 Route::get('/blogs/popular', [BlogController::class, 'popular']);
+Route::post('/blogs/{id}/update-with-files', [BlogController::class, 'updateWithFiles']);
 
 // Test route for file upload
 Route::post('/test-tour-upload', function (Request $request) {
@@ -76,7 +80,7 @@ Route::post('/test-tour-upload', function (Request $request) {
         'content_type' => $request->header('Content-Type'),
         'all_data' => $request->all()
     ];
-    
+
     if ($request->hasFile('image')) {
         $file = $request->file('image');
         $response['image_info'] = [
@@ -86,7 +90,7 @@ Route::post('/test-tour-upload', function (Request $request) {
             'extension' => $file->getClientOriginalExtension()
         ];
     }
-    
+
     if ($request->hasFile('images')) {
         $response['images_info'] = [];
         foreach ($request->file('images') as $index => $file) {
@@ -99,14 +103,14 @@ Route::post('/test-tour-upload', function (Request $request) {
             ];
         }
     }
-    
+
     return response()->json($response);
 });
 // Reviews
-    Route::prefix('reviews')->group(function () {
-        Route::post('/', [ReviewController::class, 'store']);
-        Route::put('/{id}', [ReviewController::class, 'update']);
-    });
+Route::prefix('reviews')->group(function () {
+    Route::post('/', [ReviewController::class, 'store']);
+    Route::put('/{id}', [ReviewController::class, 'update']);
+});
 
 
 // ================= AUTHENTICATED USER ROUTES =================
@@ -123,7 +127,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::apiResource('bookings', BookingController::class)->only(['index', 'store', 'show']);
     Route::get('/bookings/me/my-booking', [BookingController::class, 'myBooking']);
     Route::put('/bookings/{id}/status', [BookingController::class, 'updateStatus']);
-    
+
 
     // Favorites
     Route::prefix('favorites')->group(function () {
@@ -132,7 +136,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::delete('/{id}', [FavoriteController::class, 'destroy']);
     });
 
-    
+
 
 });
 
@@ -243,4 +247,24 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::apiResource('motorbikes', MotorbikeController::class)->only(['store', 'update', 'destroy']);
     Route::post('/motorbikes/{id}/soft-delete', [MotorbikeController::class, 'softDelete']);
     Route::get('/motorbikes/trashed', [MotorbikeController::class, 'trashed']);
+});
+
+// Blog routes
+Route::prefix('blogs')->group(function () {
+    Route::get('/trashed', [BlogController::class, 'trashed']);
+    Route::post('/{id}/soft-delete', [BlogController::class, 'softDelete']);
+    Route::post('/{id}/restore', [BlogController::class, 'restore']);
+    Route::get('/statistics', [BlogController::class, 'statistics']);
+    Route::post('/{id}/toggle-status', [BlogController::class, 'toggleStatus']);
+});
+
+// Dashboard API Routes
+Route::prefix('dashboard')->group(function () {
+    Route::get('/metrics', [DashboardController::class, 'metrics']);
+    Route::get('/weekly-revenue', [DashboardController::class, 'weeklyRevenue']);
+    Route::get('/booking-trend', [DashboardController::class, 'bookingTrend']);
+    Route::get('/booking-by-type', [DashboardController::class, 'bookingByType']);
+    Route::get('/recent-activities', [DashboardController::class, 'recentActivities']);
+    Route::get('/promotions', [DashboardController::class, 'promotions']);
+    Route::get('/combined-data', [DashboardController::class, 'combinedData']);
 });
