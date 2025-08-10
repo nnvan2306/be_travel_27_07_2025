@@ -60,6 +60,12 @@ Route::get('/guides', [GuideController::class, 'index']);
 Route::get('vnpay/return', [BookingController::class, 'vnpayReturn']);
 Route::get('/bookings/all', [BookingController::class, 'getAllBookings']);
 
+// Blog routes (không cần authentication)
+Route::apiResource('blogs', BlogController::class);
+Route::get('/blogs/slug/{slug}', [BlogController::class, 'showBySlug']);
+Route::get('/blogs/published', [BlogController::class, 'published']);
+Route::get('/blogs/popular', [BlogController::class, 'popular']);
+
 // Test route for file upload
 Route::post('/test-tour-upload', function (Request $request) {
     $response = [
