@@ -24,7 +24,8 @@ use App\Http\Controllers\{
     TourDestinationController,
     TourScheduleController,
     BlogController,
-    DashboardController
+    DashboardController,
+    SearchController // Thêm SearchController vào đây
 };
 
 // ================= PUBLIC ROUTES =================
@@ -267,4 +268,11 @@ Route::prefix('dashboard')->group(function () {
     Route::get('/recent-activities', [DashboardController::class, 'recentActivities']);
     Route::get('/promotions', [DashboardController::class, 'promotions']);
     Route::get('/combined-data', [DashboardController::class, 'combinedData']);
+});
+
+// Search routes - Thêm vào đây
+Route::prefix('search')->group(function () {
+    Route::get('/', [SearchController::class, 'search']);
+    Route::get('/tours', [SearchController::class, 'searchTours']);
+    Route::get('/blogs', [SearchController::class, 'searchBlogs']);
 });

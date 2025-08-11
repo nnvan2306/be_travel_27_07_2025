@@ -89,7 +89,8 @@ class BlogController extends Controller
             'markdown' => 'required|string',
             'location' => 'nullable|string|max:255',
             'thumbnail' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048',
-            'status' => 'nullable|in:published,draft'
+            'status' => 'nullable|in:published,draft',
+            'tags' => 'nullable|string|max:255' // Thêm validation cho tags
         ]);
 
         if ($validator->fails()) {
@@ -100,8 +101,14 @@ class BlogController extends Controller
         }
 
         try {
-            $blogData = $request->only(['title', 'description', 'markdown', 'location', 'status']);
+            $blogData = $request->only(['title', 'description', 'markdown', 'location', 'status', 'tags']);
             $blogData['status'] = $blogData['status'] ?? 'published';
+
+            // Xử lý tags: chuẩn hóa format (ví dụ: chuyển đổi dấu phẩy và khoảng trắng)
+            if (isset($blogData['tags'])) {
+                // Loại bỏ khoảng trắng thừa, đảm bảo tags phân tách bằng dấu phẩy
+                $blogData['tags'] = preg_replace('/\s*,\s*/', ',', trim($blogData['tags']));
+            }
 
             // Xử lý thumbnail
             if ($request->hasFile('thumbnail')) {
@@ -217,14 +224,14 @@ class BlogController extends Controller
             return response()->json(['message' => 'Blog không tồn tại'], 404);
         }
 
-        // Log request data để debug
         \Log::info('Update blog request data:', $request->all());
 
         $validator = Validator::make($request->all(), [
             'description' => 'nullable|string',
             'location' => 'nullable|string|max:255',
             'thumbnail' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048',
-            'status' => 'nullable|in:published,draft'
+            'status' => 'nullable|in:published,draft',
+            'tags' => 'nullable|string|max:255' // Thêm validation cho tags
         ]);
 
         if ($validator->fails()) {
@@ -236,9 +243,14 @@ class BlogController extends Controller
 
         try {
             // Lấy và kiểm tra dữ liệu
-            $blogData = $request->only(['title', 'description', 'markdown', 'location', 'status']);
+            $blogData = $request->only(['title', 'description', 'markdown', 'location', 'status', 'tags']);
 
-            // Log data trước khi update
+            // Xử lý tags
+            if (isset($blogData['tags'])) {
+                // Loại bỏ khoảng trắng thừa, đảm bảo tags phân tách bằng dấu phẩy
+                $blogData['tags'] = preg_replace('/\s*,\s*/', ',', trim($blogData['tags']));
+            }
+
             \Log::info('Blog data before update:', $blogData);
 
             // Xử lý thumbnail nếu có
@@ -282,7 +294,6 @@ class BlogController extends Controller
             // Refresh model để lấy data mới nhất
             $blog = $blog->fresh();
 
-            // Log kết quả update
             \Log::info('Blog updated successfully:', $blog->toArray());
 
             return response()->json([
@@ -314,7 +325,8 @@ class BlogController extends Controller
             'description' => 'nullable|string',
             'location' => 'nullable|string|max:255',
             'thumbnail' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048',
-            'status' => 'nullable|in:published,draft'
+            'status' => 'nullable|in:published,draft',
+            'tags' => 'nullable|string|max:255' // Thêm validation cho tags
         ]);
 
         if ($validator->fails()) {
@@ -326,9 +338,14 @@ class BlogController extends Controller
 
         try {
             // Lấy và kiểm tra dữ liệu
-            $blogData = $request->only(['title', 'description', 'markdown', 'location', 'status']);
+            $blogData = $request->only(['title', 'description', 'markdown', 'location', 'status', 'tags']);
 
-            // Log data trước khi update
+            // Xử lý tags
+            if (isset($blogData['tags'])) {
+                // Loại bỏ khoảng trắng thừa, đảm bảo tags phân tách bằng dấu phẩy
+                $blogData['tags'] = preg_replace('/\s*,\s*/', ',', trim($blogData['tags']));
+            }
+
             \Log::info('Blog data before update:', $blogData);
 
             // Xử lý thumbnail nếu có
@@ -441,5 +458,86 @@ class BlogController extends Controller
             'message' => 'Lấy danh sách blog phổ biến thành công',
             'data' => $blogs
         ]);
+    }
+
+    /**
+     * Lọc blog theo tag
+     */
+    public function getByTag(Request $request, $tag)
+    {
+        try {
+            $query = Blog::query();
+
+            // Lọc blog có chứa tag được chỉ định
+            $query->where(function ($q) use ($tag) {
+                // Tìm chính xác tag
+                $q->where('tags', $tag)
+                    // Hoặc tag ở đầu danh sách, theo sau là dấu phẩy
+                    ->orWhere('tags', 'LIKE', $tag . ',%')
+                    // Hoặc tag ở cuối danh sách, phía trước là dấu phẩy
+                    ->orWhere('tags', 'LIKE', '%,' . $tag)
+                    // Hoặc tag ở giữa danh sách, phía trước và sau là dấu phẩy
+                    ->orWhere('tags', 'LIKE', '%,' . $tag . ',%');
+            });
+
+            // Chỉ lấy blog đã publish nếu không phải admin
+            if (!$request->user() || !$request->user()->isAdmin()) {
+                $query->where('status', 'published');
+            }
+
+            // Sắp xếp
+            $query->orderBy('created_at', 'desc');
+
+            // Phân trang
+            $perPage = $request->get('per_page', 10);
+            $blogs = $query->paginate($perPage);
+
+            return response()->json([
+                'message' => 'Lấy danh sách blog theo tag thành công',
+                'data' => $blogs
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'message' => 'Lỗi khi lấy danh sách blog theo tag: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Lấy danh sách tất cả các tags
+     */
+    public function getAllTags()
+    {
+        try {
+            // Lấy tất cả các blog có tags
+            $blogs = Blog::whereNotNull('tags')->get(['tags']);
+
+            // Tạo mảng chứa tất cả tags
+            $allTags = [];
+
+            foreach ($blogs as $blog) {
+                $tags = explode(',', $blog->tags);
+                foreach ($tags as $tag) {
+                    $tag = trim($tag);
+                    if (!empty($tag) && !in_array($tag, $allTags)) {
+                        $allTags[] = $tag;
+                    }
+                }
+            }
+
+            // Sắp xếp tags theo thứ tự alphabet
+            sort($allTags);
+
+            return response()->json([
+                'message' => 'Lấy danh sách tags thành công',
+                'data' => $allTags
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'message' => 'Lỗi khi lấy danh sách tags: ' . $e->getMessage()
+            ], 500);
+        }
     }
 }

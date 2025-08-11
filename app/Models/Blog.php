@@ -11,14 +11,14 @@ class Blog extends Model
     use HasFactory;
 
     protected $fillable = [
-        'thumbnail',
-        'location',
         'title',
         'description',
         'markdown',
-        'slug',
+        'location',
+        'thumbnail',
         'status',
-        'view_count'
+        'tags',
+        'slug'
     ];
 
     protected $casts = [
@@ -78,8 +78,8 @@ class Blog extends Model
     {
         return $query->where(function ($q) use ($search) {
             $q->where('title', 'like', "%{$search}%")
-              ->orWhere('description', 'like', "%{$search}%")
-              ->orWhere('location', 'like', "%{$search}%");
+                ->orWhere('description', 'like', "%{$search}%")
+                ->orWhere('location', 'like', "%{$search}%");
         });
     }
 
