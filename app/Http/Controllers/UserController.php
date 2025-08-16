@@ -14,6 +14,73 @@ use Symfony\Component\HttpKernel\Event\ResponseEvent;
 class UserController extends Controller
 {
     use AuthorizesRequests;
+    // Chỉ cập nhật avatar
+    public function updateAvatar(Request $request)
+    {
+        $user = $request->user();
+        
+        // Debug để xem request nhận được gì
+        \Log::info('Avatar upload debug', [
+            'has_file' => $request->hasFile('avatar'),
+            'file' => $request->file('avatar'),
+            'all_files' => $request->allFiles(),
+            'all_input' => $request->all(),
+            'content_type' => $request->header('Content-Type'),
+        ]);
+
+        // Thử nhiều cách lấy file
+        $file = $request->file('avatar');
+        if (!$file && $request->hasFile('avatar')) {
+            $file = $request->file('avatar');
+        }
+        
+        // Nếu vẫn không có file, thử lấy từ input
+        if (!$file) {
+            $allFiles = $request->allFiles();
+            if (!empty($allFiles)) {
+                $file = reset($allFiles); // Lấy file đầu tiên
+            }
+        }
+
+        if ($file && $file->isValid()) {
+            // Xóa avatar cũ nếu có
+            if ($user->avatar && \Storage::disk('public')->exists($user->avatar)) {
+                \Storage::disk('public')->delete($user->avatar);
+            }
+            
+            // Lưu file mới
+            $path = $file->store('avatars', 'public');
+            $user->avatar = $path;
+            $user->save();
+            
+            // Tạo URL đầy đủ
+            $avatarUrl = asset('storage/' . $path);
+            
+            \Log::info('Avatar saved successfully', [
+                'path' => $path,
+                'url' => $avatarUrl
+            ]);
+            
+            return response()->json([
+                'message' => 'Cập nhật avatar thành công!',
+                'avatar_url' => $avatarUrl,
+                'user' => $user->fresh() // Load lại user từ DB
+            ]);
+        } else {
+            \Log::error('No valid file received', [
+                'file' => $file,
+                'all_files' => $request->allFiles(),
+            ]);
+            
+            return response()->json([
+                'message' => 'Không nhận được file hợp lệ',
+                'debug' => [
+                    'has_file' => $request->hasFile('avatar'),
+                    'all_files' => array_keys($request->allFiles()),
+                ]
+            ], 400);
+        }
+    }
 
     // Danh sách user (chỉ admin mới xem được)
     public function index()

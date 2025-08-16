@@ -123,6 +123,7 @@ Route::middleware('auth:sanctum')->group(function () {
     // Profile
     Route::get('/profile', [UserController::class, 'profile']);
     Route::put('/profile/update', [UserController::class, 'updateProfile']);
+    Route::post('/profile/avatar', [UserController::class, 'updateAvatar']); // Đổi từ PUT sang POST
 
     // Bookings
     Route::apiResource('bookings', BookingController::class)->only(['index', 'store', 'show']);
