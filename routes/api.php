@@ -279,11 +279,22 @@ Route::prefix('search')->group(function () {
 
 // Promotion Routes
 Route::group(['prefix' => 'promotions'], function () {
+    // Đặt route cụ thể TRƯỚC route có tham số {id}
+    Route::get('/available', [PromotionController::class, 'getAvailablePromotions']);
+    Route::post('/validate', [PromotionController::class, 'validatePromoCode']);
+
+    // Các route khác có tham số {id} đặt sau
     Route::get('/', [PromotionController::class, 'index']);
     Route::post('/', [PromotionController::class, 'store']);
     Route::get('/{id}', [PromotionController::class, 'show']);
     Route::put('/{id}', [PromotionController::class, 'update']);
     Route::patch('/{id}', [PromotionController::class, 'updateStatus']);
     Route::delete('/{id}', [PromotionController::class, 'destroy']);
-    Route::post('/validate', [PromotionController::class, 'validatePromoCode']);
+});
+
+// Debug route for promotions table
+Route::get('/debug-promotions-table', function () {
+    return response()->json([
+        'columns' => \Schema::getColumnListing('promotions')
+    ]);
 });

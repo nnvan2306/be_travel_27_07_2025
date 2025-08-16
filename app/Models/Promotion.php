@@ -10,7 +10,7 @@ class Promotion extends Model
 {
     use HasFactory, SoftDeletes;
 
-    protected $primaryKey = 'promotion_id';
+    protected $primaryKey = 'id';
 
     protected $fillable = [
         'code',

@@ -600,7 +600,7 @@ class BookingController extends Controller
 
         // Cập nhật booking
         $booking->update([
-            'promotion_id' => $promotion->id,
+            'id' => $promotion->id,
             'discount_amount' => $discountAmount,
             'final_amount' => $finalAmount
         ]);

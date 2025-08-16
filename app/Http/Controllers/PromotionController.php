@@ -134,7 +134,7 @@ class PromotionController extends Controller
         $promotion = Promotion::findOrFail($id);
 
         $validator = Validator::make($request->all(), [
-            'code' => 'required|string|max:20|unique:promotions,code,' . $id . ',promotion_id',
+            'code' => 'required|string|max:20|unique:promotions,code,' . $id . ',id',
             'discount_type' => 'required|in:percentage,fixed',
             'discount_value' => 'required|numeric|min:1',
             'start_date' => 'required|date',
@@ -272,5 +272,139 @@ class PromotionController extends Controller
             ],
             'message' => 'Mã khuyến mãi hợp lệ!'
         ]);
+    }
+
+    /**
+     * Lấy danh sách mã giảm giá có sẵn dựa vào giá trị đơn hàng
+     *
+     * @param  \Illuminate\Http\Request  $request
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function getAvailablePromotions(Request $request)
+    {
+        try {
+            // Lấy giá trị đơn hàng từ query parameter
+            $orderTotal = (float) $request->query('order_total', 0);
+
+            // Lấy ngày hiện tại
+            $now = now();
+
+            // Xác định các cột có trong bảng
+            $columns = \Schema::getColumnListing('promotions');
+            $selectColumns = ['id', 'code', 'discount_type', 'discount_value'];
+
+            // Thêm các cột tùy chọn nếu chúng tồn tại
+            if (in_array('description', $columns))
+                $selectColumns[] = 'description';
+            if (in_array('min_order_amount', $columns))
+                $selectColumns[] = 'min_order_amount';
+            if (in_array('max_discount_amount', $columns))
+                $selectColumns[] = 'max_discount_amount';
+            if (in_array('start_date', $columns))
+                $selectColumns[] = 'start_date';
+            if (in_array('end_date', $columns))
+                $selectColumns[] = 'end_date';
+            if (in_array('max_uses', $columns))
+                $selectColumns[] = 'max_uses';
+            if (in_array('used_count', $columns))
+                $selectColumns[] = 'used_count';
+
+            // Tạo query cơ bản
+            $query = Promotion::select($selectColumns);
+
+            // Thêm các điều kiện nếu có cột tương ứng
+            if (in_array('is_active', $columns)) {
+                $query->where('is_active', true);
+            }
+
+            if (in_array('start_date', $columns) && in_array('end_date', $columns)) {
+                $query->where(function ($q) use ($now) {
+                    $q->where('start_date', '<=', $now)
+                        ->where(function ($subq) use ($now) {
+                            $subq->whereNull('end_date')
+                                ->orWhere('end_date', '>=', $now);
+                        });
+                });
+            }
+
+            if (in_array('max_uses', $columns) && in_array('used_count', $columns)) {
+                $query->where(function ($q) {
+                    $q->whereNull('max_uses')
+                        ->orWhereRaw('used_count < max_uses');
+                });
+            }
+
+            if (in_array('min_order_amount', $columns)) {
+                $query->where(function ($q) use ($orderTotal) {
+                    $q->whereNull('min_order_amount')
+                        ->orWhere('min_order_amount', '<=', $orderTotal);
+                });
+            }
+
+            // Lấy kết quả
+            $promotions = $query->get();
+
+            // Tính toán số tiền giảm giá cho mỗi mã
+            $promotionsWithDiscount = $promotions->map(function ($promo) use ($orderTotal, $columns) {
+                // Tính giá trị giảm giá
+                $discountAmount = 0;
+
+                if ($promo->discount_type === 'percentage') {
+                    // Nếu là phần trăm, tính % của tổng đơn hàng
+                    $discountAmount = ($orderTotal * $promo->discount_value) / 100;
+
+                    // Kiểm tra giới hạn giảm giá tối đa
+                    if (
+                        in_array('max_discount_amount', $columns) &&
+                        $promo->max_discount_amount &&
+                        $discountAmount > $promo->max_discount_amount
+                    ) {
+                        $discountAmount = $promo->max_discount_amount;
+                    }
+                } else {
+                    // Nếu là số tiền cố định
+                    $discountAmount = $promo->discount_value;
+
+                    // Đảm bảo không giảm nhiều hơn giá trị đơn hàng
+                    if ($discountAmount > $orderTotal) {
+                        $discountAmount = $orderTotal;
+                    }
+                }
+
+                // Thêm thông tin giảm giá vào kết quả
+                $promo->estimated_discount = round($discountAmount);
+
+                // Định dạng thời gian để dễ đọc nếu có
+                if (in_array('start_date', $columns) && $promo->start_date) {
+                    $promo->start_date = $promo->start_date->format('Y-m-d');
+                }
+
+                if (in_array('end_date', $columns) && $promo->end_date) {
+                    $promo->end_date = $promo->end_date->format('Y-m-d');
+                }
+
+                // Thêm trạng thái sử dụng nếu có
+                if (in_array('max_uses', $columns) && in_array('used_count', $columns)) {
+                    $remainingUses = $promo->max_uses ? ($promo->max_uses - $promo->used_count) : 'Không giới hạn';
+                    $promo->remaining_uses = $remainingUses;
+                }
+
+                return $promo;
+            });
+
+            return response()->json([
+                'success' => true,
+                'data' => $promotionsWithDiscount
+            ]);
+
+        } catch (\Exception $e) {
+            \Log::error('Error fetching available promotions: ' . $e->getMessage());
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Không thể lấy danh sách mã giảm giá. Vui lòng thử lại sau.',
+                'error' => $e->getMessage()
+            ], 500);
+        }
     }
 }

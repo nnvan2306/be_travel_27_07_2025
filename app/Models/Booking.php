@@ -27,7 +27,7 @@ class Booking extends Model
         'status',
         'cancel_reason',
         'is_deleted',
-        'promotion_id',
+        'id',
         'discount_amount',
         'final_amount'
     ];
