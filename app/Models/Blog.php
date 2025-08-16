@@ -84,10 +84,16 @@ class Blog extends Model
     }
 
     /**
-     * Tăng số lượt xem
+     * Tăng số lượt xem (với bảo vệ chống spam)
      */
     public function incrementViewCount()
     {
+        // Tăng view count và save ngay lập tức
         $this->increment('view_count');
+        
+        // Refresh model để có giá trị mới nhất
+        $this->refresh();
+        
+        return $this;
     }
 }

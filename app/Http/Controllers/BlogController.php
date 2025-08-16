@@ -153,12 +153,14 @@ class BlogController extends Controller
             return response()->json(['message' => 'Blog không tồn tại'], 404);
         }
 
-        // Tăng số lượt xem
-        $blog->incrementViewCount();
+        // Tăng số lượt xem (chỉ với blog published hoặc user có quyền)
+        if ($blog->status === 'published' || (auth()->check() && auth()->user()->role === 'admin')) {
+            $blog->incrementViewCount();
+        }
 
         return response()->json([
             'message' => 'Lấy chi tiết blog thành công',
-            'data' => $blog
+            'data' => $blog->fresh() // Lấy dữ liệu mới nhất sau khi tăng view
         ]);
     }
 
@@ -173,12 +175,14 @@ class BlogController extends Controller
             return response()->json(['message' => 'Blog không tồn tại'], 404);
         }
 
-        // Tăng số lượt xem
-        $blog->incrementViewCount();
+        // Tăng số lượt xem (chỉ với blog published hoặc user có quyền)
+        if ($blog->status === 'published' || (auth()->check() && auth()->user()->role === 'admin')) {
+            $blog->incrementViewCount();
+        }
 
         return response()->json([
             'message' => 'Lấy chi tiết blog thành công',
-            'data' => $blog
+            'data' => $blog->fresh() // Lấy dữ liệu mới nhất sau khi tăng view
         ]);
     }
 
