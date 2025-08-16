@@ -25,7 +25,8 @@ use App\Http\Controllers\{
     TourScheduleController,
     BlogController,
     DashboardController,
-    SearchController // Thêm SearchController vào đây
+    SearchController,
+    ContactController // Thêm ContactController vào đây
 };
 
 // ================= PUBLIC ROUTES =================
@@ -72,6 +73,12 @@ Route::get('/blogs/slug/{slug}', [BlogController::class, 'showBySlug']);
 Route::get('/blogs/published', [BlogController::class, 'published']);
 Route::get('/blogs/popular', [BlogController::class, 'popular']);
 Route::post('/blogs/{id}/update-with-files', [BlogController::class, 'updateWithFiles']);
+
+
+Route::apiResource('contacts', ContactController::class)->only(['index', 'show', 'update', 'destroy']);
+Route::post('/contacts', [ContactController::class, 'store']);
+Route::put('/contacts/{id}/status', [ContactController::class, 'updateStatus']);
+Route::delete('/contacts/{id}', [ContactController::class, 'softDelete']);
 
 // Test route for file upload
 Route::post('/test-tour-upload', function (Request $request) {
@@ -139,8 +146,6 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/', [FavoriteController::class, 'store']);
         Route::delete('/{id}', [FavoriteController::class, 'destroy']);
     });
-
-
 
 });
 
@@ -248,6 +253,9 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::apiResource('motorbikes', MotorbikeController::class)->only(['store', 'update', 'destroy']);
     Route::post('/motorbikes/{id}/soft-delete', [MotorbikeController::class, 'softDelete']);
     Route::get('/motorbikes/trashed', [MotorbikeController::class, 'trashed']);
+
+    // Contacts
+
 });
 
 // Blog routes
