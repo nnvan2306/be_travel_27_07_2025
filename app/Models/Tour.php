@@ -9,6 +9,8 @@ class Tour extends Model
     protected $fillable = [
         'category_id',
         'album_id',
+        'guide_id',
+        'bus_route_id',
         'tour_name',
         'description',
         'itinerary',

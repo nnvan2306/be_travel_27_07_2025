@@ -60,12 +60,9 @@ class TourController extends Controller
             'guide_id' => 'nullable|exists:guides,guide_id',
             'bus_route_id' => 'nullable|exists:bus_routes,bus_route_id',
             'schedules' => 'nullable|array',
-            'schedules.*.day' => 'required|integer|min:1',
-            'schedules.*.start_time' => 'required|date_format:H:i',
-            'schedules.*.end_time' => 'required|date_format:H:i|after:schedules.*.start_time',
-            'schedules.*.title' => 'required|string|max:255',
+            'schedules.*.day' => 'nullable|integer|min:1',
+            'schedules.*.title' => 'nullable|string|max:255',
             'schedules.*.activity_description' => 'nullable|string',
-            'schedules.*.destination_id' => 'nullable|exists:destinations,destination_id',
         ]);
 
         // Sử dụng transaction để đảm bảo toàn vẹn dữ liệu
@@ -136,15 +133,17 @@ class TourController extends Controller
             // Lưu lịch trình
             if ($request->has('schedules')) {
                 foreach ($request->schedules as $schedule) {
-                    TourSchedule::create([
-                        'tour_id' => $tour->tour_id,
-                        'day' => $schedule['day'],
-                        'start_time' => $schedule['start_time'],
-                        'end_time' => $schedule['end_time'],
-                        'title' => $schedule['title'],
-                        'activity_description' => $schedule['activity_description'] ?? null,
-                        'destination_id' => $schedule['destination_id'] ?? null,
-                    ]);
+                    if (isset($schedule['title']) && !empty(trim($schedule['title']))) {
+                        TourSchedule::create([
+                            'tour_id' => $tour->tour_id,
+                            'day' => $schedule['day'] ?? 1,
+                            'start_time' => null,
+                            'end_time' => null,
+                            'title' => trim($schedule['title']),
+                            'activity_description' => isset($schedule['activity_description']) ? trim($schedule['activity_description']) : null,
+                            'destination_id' => null,
+                        ]);
+                    }
                 }
             }
 
@@ -201,27 +200,23 @@ class TourController extends Controller
         }
 
         $request->validate([
-            'category_id' => 'exists:tour_categories,category_id',
-            'tour_name' => 'string|max:255',
+            'category_id' => 'nullable|exists:tour_categories,category_id',
+            'tour_name' => 'nullable|string|max:255',
             'description' => 'nullable|string',
             'itinerary' => 'nullable|string',
-            'price' => 'numeric',
+            'price' => 'nullable|numeric',
             'discount_price' => 'nullable|numeric',
             'duration' => 'nullable|string',
-            'status' => 'in:visible,hidden',
+            'status' => 'nullable|in:visible,hidden',
             'image' => 'nullable|image|mimes:jpeg,png,jpg|max:2048',
             'images.*' => 'nullable|image|mimes:jpeg,png,jpg|max:2048',
             'destination_ids' => 'nullable|array',
             'destination_ids.*' => 'exists:destinations,destination_id',
             'guide_id' => 'nullable|exists:guides,guide_id',
             'bus_route_id' => 'nullable|exists:bus_routes,bus_route_id',
-            'schedules' => 'nullable|array',
-            'schedules.*.day' => 'required|integer|min:1',
-            'schedules.*.start_time' => 'required|date_format:H:i',
-            'schedules.*.end_time' => 'required|date_format:H:i|after:schedules.*.start_time',
-            'schedules.*.title' => 'required|string|max:255',
+            'schedules.*.day' => 'nullable|integer|min:1',
+            'schedules.*.title' => 'nullable|string|max:255',
             'schedules.*.activity_description' => 'nullable|string',
-            'schedules.*.destination_id' => 'nullable|exists:destinations,destination_id',
         ]);
 
         DB::beginTransaction();
@@ -265,93 +260,197 @@ class TourController extends Controller
                 }
             }
 
-            // Cập nhật slug nếu tour_name thay đổi
+            // Cập nhật thông tin tour
+            $hasUpdates = false;
+            
+            if ($request->has('category_id')) {
+                $tour->category_id = $request->category_id;
+                $hasUpdates = true;
+            }
+            
             if ($request->has('tour_name') && $request->tour_name !== $tour->tour_name) {
+                $tour->tour_name = $request->tour_name;
+                
+                // Cập nhật slug khi tour_name thay đổi
                 $slug = Str::slug($request->tour_name);
                 if (Tour::where('slug', $slug)->where('tour_id', '!=', $tour->tour_id)->exists()) {
                     $slug .= '-' . uniqid();
                 }
                 $tour->slug = $slug;
+                $hasUpdates = true;
+            }
+            
+            if ($request->has('description')) {
+                $tour->description = $request->description;
+                $hasUpdates = true;
+            }
+            
+            if ($request->has('itinerary')) {
+                $tour->itinerary = $request->itinerary;
+                $hasUpdates = true;
+            }
+            
+            if ($request->has('price')) {
+                $tour->price = $request->price;
+                $hasUpdates = true;
+            }
+            
+            if ($request->has('discount_price')) {
+                $tour->discount_price = $request->discount_price ?: null;
+                $hasUpdates = true;
+            }
+            
+            if ($request->has('duration')) {
+                $tour->duration = $request->duration;
+                $hasUpdates = true;
+            }
+            
+            if ($request->has('status')) {
+                $tour->status = $request->status;
+                $hasUpdates = true;
+            }
+            
+            if ($request->has('guide_id')) {
+                $tour->guide_id = $request->guide_id ?: null;
+                $hasUpdates = true;
+            }
+            
+            if ($request->has('bus_route_id')) {
+                $tour->bus_route_id = $request->bus_route_id ?: null;
+                $hasUpdates = true;
             }
 
-            // Cập nhật thông tin tour
-            $tour->update($request->only([
-                'category_id',
-                'tour_name',
-                'description',
-                'itinerary',
-                'price',
-                'discount_price',
-                'duration',
-                'status',
-                'guide_id',
-                'bus_route_id',
-            ]));
+            // Lưu thông tin cơ bản nếu có thay đổi
+            if ($hasUpdates) {
+                $tour->save();
+                \Log::info('Tour basic info updated successfully', [
+                    'tour_id' => $tour->tour_id,
+                    'updated_at' => $tour->updated_at
+                ]);
+            }
 
             // Cập nhật điểm đến
             if ($request->has('destination_ids')) {
                 $tour->destinations()->sync($request->destination_ids);
             }
 
-            // Cập nhật ảnh phụ
-            if ($request->hasFile('images') && $tour->album) {
+            // Cập nhật ảnh cover
+            if ($request->hasFile('cover_image')) {
                 try {
-                    Log::info('Processing additional images', [
-                        'count' => count($request->file('images'))
-                    ]);
-
-                    // Xóa tất cả ảnh cũ
-                    foreach ($tour->album->images as $img) {
-                        if (Storage::disk('public')->exists($img->image_url)) {
-                            Storage::disk('public')->delete($img->image_url);
-                            Log::info('Deleted old album image', ['path' => $img->image_url]);
-                        }
-                        $img->delete();
-                    }
+                    \Log::info('Processing cover image');
                     
-                    // Lưu ảnh mới
-                    foreach ($request->file('images') as $index => $img) {
-                        Log::info('Processing album image', [
-                            'index' => $index,
-                            'original_name' => $img->getClientOriginalName(),
-                            'size' => $img->getSize(),
-                            'mime_type' => $img->getMimeType()
+                    // Xóa ảnh cover cũ
+                    if ($tour->cover_image && Storage::disk('public')->exists($tour->cover_image)) {
+                        Storage::disk('public')->delete($tour->cover_image);
+                        \Log::info('Deleted old cover image', ['path' => $tour->cover_image]);
+                    }
+
+                    $coverImage = $request->file('cover_image');
+                    $coverOriginalName = $coverImage->getClientOriginalName();
+                    $sanitizedCoverName = preg_replace('/[^a-zA-Z0-9._-]/', '_', $coverOriginalName);
+                    $coverFileName = time() . '_cover_' . $sanitizedCoverName;
+                    
+                    $coverPath = $coverImage->storeAs('tour_covers', $coverFileName, 'public');
+                    $tour->cover_image = $coverPath;
+                    $tour->save();
+                    \Log::info('New cover image uploaded', ['path' => $coverPath]);
+                } catch (\Exception $e) {
+                    \Log::error('Error updating cover image', ['error' => $e->getMessage()]);
+                    throw new \Exception('Lỗi khi cập nhật ảnh cover: ' . $e->getMessage());
+                }
+            }
+
+            // Cập nhật ảnh phụ
+            if ($request->hasFile('images') || $request->has('old_images')) {
+                try {
+                    if ($tour->album) {
+                        \Log::info('Processing album images', [
+                            'has_new_images' => $request->hasFile('images'),
+                            'has_old_images' => $request->has('old_images')
                         ]);
 
-                        // Sanitize tên file
-                        $originalName = $img->getClientOriginalName();
-                        $sanitizedName = preg_replace('/[^a-zA-Z0-9._-]/', '_', $originalName);
-                        $fileName = time() . '_' . $index . '_' . $sanitizedName;
-                        
-                        $path = $img->storeAs('album_images', $fileName, 'public');
-                        AlbumImage::create([
-                            'album_id' => $tour->album_id,
-                            'image_url' => $path,
-                            'caption' => null,
-                            'is_deleted' => self::STATUS_ACTIVE,
-                        ]);
-                        
-                        Log::info('Album image uploaded successfully', ['path' => $path]);
+                        // Xóa tất cả ảnh cũ
+                        foreach ($tour->album->images as $img) {
+                            if (Storage::disk('public')->exists($img->image_url)) {
+                                Storage::disk('public')->delete($img->image_url);
+                            }
+                            $img->delete();
+                        }
+
+                        // Thêm lại ảnh cũ được giữ lại
+                        if ($request->has('old_images')) {
+                            $oldImages = $request->get('old_images');
+                            if (is_array($oldImages)) {
+                                foreach ($oldImages as $oldImagePath) {
+                                    if (Storage::disk('public')->exists($oldImagePath)) {
+                                        AlbumImage::create([
+                                            'album_id' => $tour->album_id,
+                                            'image_url' => $oldImagePath,
+                                            'caption' => null,
+                                            'is_deleted' => self::STATUS_ACTIVE,
+                                        ]);
+                                        \Log::info('Kept old album image', ['path' => $oldImagePath]);
+                                    }
+                                }
+                            }
+                        }
+
+                        // Upload ảnh mới
+                        if ($request->hasFile('images')) {
+                            foreach ($request->file('images') as $index => $img) {
+                                $originalName = $img->getClientOriginalName();
+                                $sanitizedName = preg_replace('/[^a-zA-Z0-9._-]/', '_', $originalName);
+                                $fileName = time() . '_' . $index . '_' . $sanitizedName;
+                                $path = $img->storeAs('album_images', $fileName, 'public');
+                                
+                                AlbumImage::create([
+                                    'album_id' => $tour->album_id,
+                                    'image_url' => $path,
+                                    'caption' => null,
+                                    'is_deleted' => self::STATUS_ACTIVE,
+                                ]);
+                                \Log::info('New album image uploaded', ['path' => $path]);
+                            }
+                        }
                     }
                 } catch (\Exception $e) {
-                    Log::error('Error uploading album images', ['error' => $e->getMessage()]);
-                    return response()->json(['message' => 'Lỗi khi upload ảnh phụ: ' . $e->getMessage()], 500);
+                    \Log::error('Error updating album images', ['error' => $e->getMessage()]);
+                    throw new \Exception('Lỗi khi cập nhật ảnh album: ' . $e->getMessage());
                 }
             }
 
             // Cập nhật lịch trình
             if ($request->has('schedules')) {
-                $tour->schedules()->delete();
-                foreach ($request->schedules as $schedule) {
-                    TourSchedule::create([
-                        'tour_id' => $tour->tour_id,
-                        'day' => $schedule['day'],
-                        'start_time' => $schedule['start_time'],
-                        'end_time' => $schedule['end_time'],
-                        'title' => $schedule['title'],
-                        'activity_description' => $schedule['activity_description'] ?? null,
-                        'destination_id' => $schedule['destination_id'] ?? null,
-                    ]);
+                \Log::info('Updating schedules', [
+                    'tour_id' => $tour->tour_id,
+                    'schedules_data' => $request->get('schedules')
+                ]);
+                
+                // Xóa tất cả schedule cũ
+                $deletedCount = $tour->schedules()->delete();
+                \Log::info('Deleted old schedules', ['count' => $deletedCount]);
+                
+                // Thêm schedule mới
+                $schedules = $request->get('schedules');
+                if (is_array($schedules)) {
+                    foreach ($schedules as $index => $schedule) {
+                        if (isset($schedule['title']) && !empty(trim($schedule['title']))) {
+                            $newSchedule = TourSchedule::create([
+                                'tour_id' => $tour->tour_id,
+                                'day' => isset($schedule['day']) ? (int)$schedule['day'] : ($index + 1),
+                                'start_time' => null, // Không cần start_time nữa
+                                'end_time' => null,   // Không cần end_time nữa
+                                'title' => trim($schedule['title']),
+                                'activity_description' => isset($schedule['activity_description']) ? trim($schedule['activity_description']) : null,
+                                'destination_id' => null, // Không cần destination_id nữa
+                            ]);
+                            \Log::info('Schedule created', [
+                                'schedule_id' => $newSchedule->schedule_id,
+                                'day' => $newSchedule->day,
+                                'title' => $newSchedule->title
+                            ]);
+                        }
+                    }
                 }
             }
 
