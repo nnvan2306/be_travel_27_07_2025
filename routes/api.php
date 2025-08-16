@@ -166,6 +166,9 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/albums/trashed', [AlbumController::class, 'trashed']);
     Route::post('/albums/{id}/soft-delete', [AlbumController::class, 'softDelete']);
 
+    // Album Images - Get all images
+    Route::get('/albums/images/all', [AlbumImageController::class, 'allImages']);
+
     // Album Images
     Route::prefix('albums/{albumId}/images')->group(function () {
         Route::get('/', [AlbumImageController::class, 'index']);
