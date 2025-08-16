@@ -4,279 +4,273 @@ namespace App\Http\Controllers;
 
 use App\Models\Promotion;
 use Illuminate\Http\Request;
-use Illuminate\Validation\Rule;
+use Illuminate\Support\Facades\Validator;
 
 class PromotionController extends Controller
 {
-    // Danh sách promotions (chỉ active)
+    /**
+     * Lấy danh sách mã khuyến mãi
+     */
     public function index(Request $request)
     {
-        try {
-            $query = Promotion::active();
+        $query = Promotion::query();
 
-            // Tìm kiếm theo code
-            if ($request->has('search')) {
-                $query->where('code', 'like', '%' . $request->search . '%');
-            }
-
-            // Lọc theo applies_to
-            if ($request->has('applies_to')) {
-                $query->where('applies_to', $request->applies_to);
-            }
-
-            // Lọc theo trạng thái hiệu lực
-            if ($request->has('status')) {
-                $today = now()->toDateString();
-                if ($request->status === 'valid') {
-                    $query->where('valid_from', '<=', $today)
-                          ->where('valid_to', '>=', $today);
-                } elseif ($request->status === 'expired') {
-                    $query->where('valid_to', '<', $today);
-                }
-            }
-
-            $promotions = $query->paginate($request->get('per_page', 10));
-
-            return response()->json([
-                'success' => true,
-                'data' => $promotions
-            ]);
-        } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Lỗi khi lấy danh sách promotions',
-                'error' => $e->getMessage()
-            ], 500);
+        // Lọc theo keyword
+        if ($request->has('keyword')) {
+            $keyword = $request->keyword;
+            $query->where(function ($q) use ($keyword) {
+                $q->where('code', 'like', "%{$keyword}%")
+                    ->orWhere('description', 'like', "%{$keyword}%");
+            });
         }
+
+        // Lọc theo trạng thái
+        if ($request->has('status') && $request->status !== 'all') {
+            if ($request->status === 'active') {
+                $query->where('is_active', true);
+            } else if ($request->status === 'inactive') {
+                $query->where('is_active', false);
+            }
+        }
+
+        // Lọc theo ngày
+        if ($request->has('start_date')) {
+            $query->whereDate('start_date', '>=', $request->start_date);
+        }
+
+        if ($request->has('end_date')) {
+            $query->whereDate('end_date', '<=', $request->end_date);
+        }
+
+        // Sắp xếp
+        $sortBy = $request->input('sort_by', 'created_at');
+        $sortOrder = $request->input('sort_order', 'desc');
+        $query->orderBy($sortBy, $sortOrder);
+
+        $promotions = $query->paginate($request->input('per_page', 10));
+
+        return response()->json([
+            'success' => true,
+            'data' => $promotions->items(),
+            'meta' => [
+                'current_page' => $promotions->currentPage(),
+                'last_page' => $promotions->lastPage(),
+                'per_page' => $promotions->perPage(),
+                'total' => $promotions->total()
+            ]
+        ]);
     }
 
-    // Chi tiết promotion
-    public function show($id)
-    {
-        try {
-            $promotion = Promotion::find($id);
-
-            if (!$promotion) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Promotion không tồn tại'
-                ], 404);
-            }
-
-            return response()->json([
-                'success' => true,
-                'data' => $promotion
-            ]);
-        } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Lỗi khi lấy chi tiết promotion',
-                'error' => $e->getMessage()
-            ], 500);
-        }
-    }
-
-    // Tạo promotion mới
+    /**
+     * Tạo mã khuyến mãi mới
+     */
     public function store(Request $request)
     {
-        try {
-            $validated = $request->validate([
-                'code' => 'required|string|max:50|unique:promotions,code',
-                'discount' => 'required|numeric|min:0|max:100',
-                'max_uses' => 'required|integer|min:1',
-                'valid_from' => 'required|date|after_or_equal:today',
-                'valid_to' => 'required|date|after:valid_from',
-                'applies_to' => ['required', Rule::in(['tour', 'combo', 'hotel', 'transport', 'all'])]
-            ], [
-                'code.required' => 'Mã khuyến mãi là bắt buộc',
-                'code.unique' => 'Mã khuyến mãi đã tồn tại',
-                'discount.required' => 'Giá trị giảm giá là bắt buộc',
-                'discount.min' => 'Giá trị giảm giá phải lớn hơn 0',
-                'discount.max' => 'Giá trị giảm giá không được vượt quá 100%',
-                'max_uses.required' => 'Số lần sử dụng tối đa là bắt buộc',
-                'valid_from.required' => 'Ngày bắt đầu là bắt buộc',
-                'valid_from.after_or_equal' => 'Ngày bắt đầu phải từ hôm nay trở đi',
-                'valid_to.required' => 'Ngày kết thúc là bắt buộc',
-                'valid_to.after' => 'Ngày kết thúc phải sau ngày bắt đầu',
-                'applies_to.required' => 'Loại áp dụng là bắt buộc'
-            ]);
+        $validator = Validator::make($request->all(), [
+            'code' => 'required|string|max:20|unique:promotions,code',
+            'discount_type' => 'required|in:percentage,fixed',
+            'discount_value' => 'required|numeric|min:1',
+            'start_date' => 'required|date',
+            'end_date' => 'required|date|after_or_equal:start_date',
+            'max_uses' => 'nullable|integer|min:1',
+            'is_active' => 'boolean',
+            'description' => 'nullable|string|max:255',
+        ]);
 
-            $validated['used_count'] = 0;
-            $validated['is_deleted'] = 'active';
-
-            $promotion = Promotion::create($validated);
-
-            return response()->json([
-                'success' => true,
-                'message' => 'Tạo promotion thành công',
-                'data' => $promotion
-            ], 201);
-        } catch (\Illuminate\Validation\ValidationException $e) {
+        if ($validator->fails()) {
             return response()->json([
                 'success' => false,
-                'message' => 'Dữ liệu không hợp lệ',
-                'errors' => $e->errors()
+                'message' => 'Validation error',
+                'errors' => $validator->errors()
             ], 422);
-        } catch (\Exception $e) {
+        }
+
+        // Kiểm tra thêm giá trị phần trăm
+        if ($request->discount_type === 'percentage' && $request->discount_value > 100) {
             return response()->json([
                 'success' => false,
-                'message' => 'Lỗi khi tạo promotion',
-                'error' => $e->getMessage()
-            ], 500);
+                'message' => 'Validation error',
+                'errors' => ['discount_value' => ['Phần trăm giảm giá không thể lớn hơn 100%']]
+            ], 422);
         }
+
+        $promotion = Promotion::create([
+            'code' => $request->code,
+            'discount_type' => $request->discount_type,
+            'discount_value' => $request->discount_value,
+            'start_date' => $request->start_date,
+            'end_date' => $request->end_date,
+            'max_uses' => $request->max_uses,
+            'current_uses' => 0,
+            'is_active' => $request->is_active ?? true,
+            'description' => $request->description,
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'data' => $promotion,
+            'message' => 'Tạo mã khuyến mãi thành công!'
+        ], 201);
     }
 
-    // Cập nhật promotion
+    /**
+     * Hiển thị thông tin chi tiết mã khuyến mãi
+     */
+    public function show($id)
+    {
+        $promotion = Promotion::findOrFail($id);
+
+        return response()->json([
+            'success' => true,
+            'data' => $promotion
+        ]);
+    }
+
+    /**
+     * Cập nhật mã khuyến mãi
+     */
     public function update(Request $request, $id)
     {
-        try {
-            $promotion = Promotion::find($id);
+        $promotion = Promotion::findOrFail($id);
 
-            if (!$promotion) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Promotion không tồn tại'
-                ], 404);
-            }
+        $validator = Validator::make($request->all(), [
+            'code' => 'required|string|max:20|unique:promotions,code,' . $id . ',promotion_id',
+            'discount_type' => 'required|in:percentage,fixed',
+            'discount_value' => 'required|numeric|min:1',
+            'start_date' => 'required|date',
+            'end_date' => 'required|date|after_or_equal:start_date',
+            'max_uses' => 'nullable|integer|min:1',
+            'is_active' => 'boolean',
+            'description' => 'nullable|string|max:255',
+        ]);
 
-            $validated = $request->validate([
-                'code' => 'required|string|max:50|unique:promotions,code,' . $id . ',promotion_id',
-                'discount' => 'required|numeric|min:0|max:100',
-                'max_uses' => 'required|integer|min:1',
-                'valid_from' => 'required|date',
-                'valid_to' => 'required|date|after:valid_from',
-                'applies_to' => ['required', Rule::in(['tour', 'combo', 'hotel', 'transport', 'all'])]
-            ]);
-
-            $promotion->update($validated);
-
-            return response()->json([
-                'success' => true,
-                'message' => 'Cập nhật promotion thành công',
-                'data' => $promotion
-            ]);
-        } catch (\Illuminate\Validation\ValidationException $e) {
+        if ($validator->fails()) {
             return response()->json([
                 'success' => false,
-                'message' => 'Dữ liệu không hợp lệ',
-                'errors' => $e->errors()
+                'message' => 'Validation error',
+                'errors' => $validator->errors()
             ], 422);
-        } catch (\Exception $e) {
+        }
+
+        // Kiểm tra thêm giá trị phần trăm
+        if ($request->discount_type === 'percentage' && $request->discount_value > 100) {
             return response()->json([
                 'success' => false,
-                'message' => 'Lỗi khi cập nhật promotion',
-                'error' => $e->getMessage()
-            ], 500);
+                'message' => 'Validation error',
+                'errors' => ['discount_value' => ['Phần trăm giảm giá không thể lớn hơn 100%']]
+            ], 422);
         }
+
+        $promotion->update([
+            'code' => $request->code,
+            'discount_type' => $request->discount_type,
+            'discount_value' => $request->discount_value,
+            'start_date' => $request->start_date,
+            'end_date' => $request->end_date,
+            'max_uses' => $request->max_uses,
+            'is_active' => $request->is_active,
+            'description' => $request->description,
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'data' => $promotion,
+            'message' => 'Cập nhật mã khuyến mãi thành công!'
+        ]);
     }
 
-    // Soft delete (ẩn/hiện promotion)
-    public function softDelete($id)
+    /**
+     * Cập nhật trạng thái mã khuyến mãi
+     */
+    public function updateStatus(Request $request, $id)
     {
-        try {
-            $promotion = Promotion::find($id);
+        $promotion = Promotion::findOrFail($id);
 
-            if (!$promotion) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Promotion không tồn tại'
-                ], 404);
-            }
+        $validator = Validator::make($request->all(), [
+            'is_active' => 'required|boolean',
+        ]);
 
-            $newStatus = $promotion->is_deleted === 'active' ? 'inactive' : 'active';
-            $promotion->update(['is_deleted' => $newStatus]);
-
-            $action = $newStatus === 'inactive' ? 'ẩn' : 'hiện';
-
-            return response()->json([
-                'success' => true,
-                'message' => "Đã {$action} promotion thành công",
-                'data' => $promotion
-            ]);
-        } catch (\Exception $e) {
+        if ($validator->fails()) {
             return response()->json([
                 'success' => false,
-                'message' => 'Lỗi khi cập nhật trạng thái promotion',
-                'error' => $e->getMessage()
-            ], 500);
+                'message' => 'Validation error',
+                'errors' => $validator->errors()
+            ], 422);
         }
+
+        $promotion->update([
+            'is_active' => $request->is_active,
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'data' => $promotion,
+            'message' => $request->is_active
+                ? 'Mã khuyến mãi đã được kích hoạt!'
+                : 'Mã khuyến mãi đã được vô hiệu hóa!'
+        ]);
     }
 
-    // Xóa vĩnh viễn
+    /**
+     * Xóa mã khuyến mãi
+     */
     public function destroy($id)
     {
-        try {
-            $promotion = Promotion::find($id);
+        $promotion = Promotion::findOrFail($id);
+        $promotion->delete();
 
-            if (!$promotion) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Promotion không tồn tại'
-                ], 404);
+        return response()->json([
+            'success' => true,
+            'message' => 'Xóa mã khuyến mãi thành công!'
+        ]);
+    }
+
+    /**
+     * Kiểm tra mã khuyến mãi có hợp lệ không
+     */
+    public function validatePromoCode(Request $request)
+    {
+        $validator = Validator::make($request->all(), [
+            'code' => 'required|string|exists:promotions,code',
+            'order_total' => 'required|numeric|min:0',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Mã khuyến mãi không hợp lệ hoặc không tồn tại',
+                'errors' => $validator->errors()
+            ], 422);
+        }
+
+        $promotion = Promotion::where('code', $request->code)->first();
+
+        if (!$promotion->isActive()) {
+            $reason = '';
+            if (!$promotion->is_active) {
+                $reason = 'Mã khuyến mãi đã bị vô hiệu hóa';
+            } elseif ($promotion->isExpired()) {
+                $reason = 'Mã khuyến mãi đã hết hạn';
+            } elseif ($promotion->max_uses !== null && $promotion->current_uses >= $promotion->max_uses) {
+                $reason = 'Mã khuyến mãi đã được sử dụng hết';
             }
 
-            $promotion->delete();
-
-            return response()->json([
-                'success' => true,
-                'message' => 'Xóa promotion thành công'
-            ]);
-        } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
-                'message' => 'Lỗi khi xóa promotion',
-                'error' => $e->getMessage()
-            ], 500);
+                'message' => $reason,
+            ], 400);
         }
-    }
 
-    // Danh sách promotions đã ẩn
-    public function trashed(Request $request)
-    {
-        try {
-            $promotions = Promotion::inactive()
-                ->paginate($request->get('per_page', 10));
+        $discountAmount = $promotion->calculateDiscount($request->order_total);
 
-            return response()->json([
-                'success' => true,
-                'data' => $promotions
-            ]);
-        } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Lỗi khi lấy danh sách promotions đã ẩn',
-                'error' => $e->getMessage()
-            ], 500);
-        }
-    }
-
-    // Thống kê promotions
-    public function statistics()
-    {
-        try {
-            $stats = [
-                'total' => Promotion::count(),
-                'active' => Promotion::active()->count(),
-                'inactive' => Promotion::inactive()->count(),
-                'valid' => Promotion::active()
-                    ->where('valid_from', '<=', now()->toDateString())
-                    ->where('valid_to', '>=', now()->toDateString())
-                    ->count(),
-                'expired' => Promotion::active()
-                    ->where('valid_to', '<', now()->toDateString())
-                    ->count()
-            ];
-
-            return response()->json([
-                'success' => true,
-                'data' => $stats
-            ]);
-        } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Lỗi khi lấy thống kê promotions',
-                'error' => $e->getMessage()
-            ], 500);
-        }
+        return response()->json([
+            'success' => true,
+            'data' => [
+                'promotion' => $promotion,
+                'discount_amount' => $discountAmount,
+                'final_amount' => $request->order_total - $discountAmount
+            ],
+            'message' => 'Mã khuyến mãi hợp lệ!'
+        ]);
     }
 }

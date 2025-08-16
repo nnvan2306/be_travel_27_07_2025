@@ -27,6 +27,9 @@ class Booking extends Model
         'status',
         'cancel_reason',
         'is_deleted',
+        'promotion_id',
+        'discount_amount',
+        'final_amount'
     ];
 
     // Nếu dùng enum casting (Laravel 9+)
@@ -75,6 +78,11 @@ class Booking extends Model
         return $this->belongsTo(CustomTour::class, 'custom_tour_id', 'custom_tour_id');
     }
 
+    public function promotion()
+    {
+        return $this->belongsTo(Promotion::class);
+    }
+
     // Scope filter active bookings
     public function scopeActive($query)
     {
@@ -86,4 +94,10 @@ class Booking extends Model
         return $query->where('is_deleted', 'inactive');
     }
 
+    // Cập nhật phương thức tính toán giá cuối cùng
+    public function calculateFinalAmount()
+    {
+        $this->final_amount = $this->total_amount - $this->discount_amount;
+        return $this->final_amount;
+    }
 }

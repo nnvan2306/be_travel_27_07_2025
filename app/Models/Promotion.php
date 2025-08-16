@@ -4,53 +4,73 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Promotion extends Model
 {
-    use HasFactory;
+    use HasFactory, SoftDeletes;
 
-    protected $table = 'promotions';
     protected $primaryKey = 'promotion_id';
-    public $timestamps = false;
 
     protected $fillable = [
         'code',
-        'discount',
+        'discount_type',
+        'discount_value',
+        'start_date',
+        'end_date',
         'max_uses',
-        'used_count',
-        'valid_from',
-        'valid_to',
-        'applies_to',
-        'is_deleted'
+        'current_uses',
+        'is_active',
+        'description'
     ];
 
     protected $casts = [
-        'discount' => 'decimal:2',
-        'valid_from' => 'date',
-        'valid_to' => 'date',
+        'start_date' => 'date',
+        'end_date' => 'date',
+        'is_active' => 'boolean',
+        'discount_value' => 'float',
         'max_uses' => 'integer',
-        'used_count' => 'integer'
+        'current_uses' => 'integer',
     ];
 
-    // Scope để lấy chỉ các promotion active
-    public function scopeActive($query)
+    public function isExpired()
     {
-        return $query->where('is_deleted', 'active');
+        return now()->gt($this->end_date);
     }
 
-    // Scope để lấy các promotion inactive
-    public function scopeInactive($query)
+    public function isActive()
     {
-        return $query->where('is_deleted', 'inactive');
+        if (!$this->is_active) {
+            return false;
+        }
+
+        if ($this->isExpired()) {
+            return false;
+        }
+
+        if ($this->max_uses !== null && $this->current_uses >= $this->max_uses) {
+            return false;
+        }
+
+        return true;
     }
 
-    // Kiểm tra promotion còn hiệu lực
-    public function isValid()
+    public function calculateDiscount($orderTotal)
     {
-        $today = now()->toDateString();
-        return $this->is_deleted === 'active' 
-            && $this->valid_from <= $today 
-            && $this->valid_to >= $today
-            && $this->used_count < $this->max_uses;
+        if (!$this->isActive()) {
+            return 0;
+        }
+
+        if ($this->discount_type === 'percentage') {
+            return ($orderTotal * $this->discount_value) / 100;
+        } else {
+            return min($this->discount_value, $orderTotal);
+        }
+    }
+
+    public function incrementUsage()
+    {
+        $this->current_uses += 1;
+        $this->save();
     }
 }

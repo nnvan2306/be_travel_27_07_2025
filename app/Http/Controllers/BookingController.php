@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Booking;
 use App\Models\CustomTour;
+use App\Models\Promotion;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 
@@ -499,5 +500,69 @@ class BookingController extends Controller
                 'hasBooked' => false
             ], 500);
         }
+    }
+
+    /**
+     * Áp dụng mã khuyến mãi vào đơn đặt tour
+     */
+    public function applyPromoCode(Request $request, $bookingId)
+    {
+        $validator = Validator::make($request->all(), [
+            'code' => 'required|string|exists:promotions,code',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Mã khuyến mãi không hợp lệ hoặc không tồn tại',
+                'errors' => $validator->errors()
+            ], 422);
+        }
+
+        $booking = Booking::findOrFail($bookingId);
+        $promotion = Promotion::where('code', $request->code)->first();
+
+        // Kiểm tra mã khuyến mãi có hợp lệ không
+        if (!$promotion->isActive()) {
+            $reason = '';
+            if (!$promotion->is_active) {
+                $reason = 'Mã khuyến mãi đã bị vô hiệu hóa';
+            } elseif ($promotion->isExpired()) {
+                $reason = 'Mã khuyến mãi đã hết hạn';
+            } elseif ($promotion->max_uses !== null && $promotion->current_uses >= $promotion->max_uses) {
+                $reason = 'Mã khuyến mãi đã được sử dụng hết';
+            }
+
+            return response()->json([
+                'success' => false,
+                'message' => $reason,
+            ], 400);
+        }
+
+        // Tính toán số tiền giảm giá
+        $totalAmount = $booking->total_amount;
+        $discountAmount = $promotion->calculateDiscount($totalAmount);
+        $finalAmount = $totalAmount - $discountAmount;
+
+        // Cập nhật booking
+        $booking->update([
+            'promotion_id' => $promotion->id,
+            'discount_amount' => $discountAmount,
+            'final_amount' => $finalAmount
+        ]);
+
+        // Tăng số lần sử dụng mã
+        $promotion->incrementUsage();
+
+        return response()->json([
+            'success' => true,
+            'data' => [
+                'booking' => $booking,
+                'promotion' => $promotion,
+                'discount_amount' => $discountAmount,
+                'final_amount' => $finalAmount
+            ],
+            'message' => 'Áp dụng mã khuyến mãi thành công!'
+        ]);
     }
 }

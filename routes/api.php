@@ -197,12 +197,6 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/bookings/{id}/soft-delete', [BookingController::class, 'softDelete']);
     Route::get('/bookings/trashed', [BookingController::class, 'trashed']);
 
-    // Promotions
-    Route::apiResource('promotions', PromotionController::class)->only(['store', 'update', 'destroy']);
-    Route::post('/promotions/{id}/soft-delete', [PromotionController::class, 'softDelete']);
-    Route::get('/promotions/trashed', [PromotionController::class, 'trashed']);
-    Route::get('/promotions/statistics', [PromotionController::class, 'statistics']);
-
     // Site Settings
     Route::apiResource('settings', SiteSettingController::class)->only(['index', 'store', 'update', 'destroy']);
     Route::post('/settings/{id}/soft-delete', [SiteSettingController::class, 'softDelete']);
@@ -279,4 +273,15 @@ Route::prefix('search')->group(function () {
     Route::get('/', [SearchController::class, 'search']);
     Route::get('/tours', [SearchController::class, 'searchTours']);
     Route::get('/blogs', [SearchController::class, 'searchBlogs']);
+});
+
+// Promotion Routes
+Route::group(['prefix' => 'promotions'], function () {
+    Route::get('/', [PromotionController::class, 'index']);
+    Route::post('/', [PromotionController::class, 'store']);
+    Route::get('/{id}', [PromotionController::class, 'show']);
+    Route::put('/{id}', [PromotionController::class, 'update']);
+    Route::patch('/{id}', [PromotionController::class, 'updateStatus']);
+    Route::delete('/{id}', [PromotionController::class, 'destroy']);
+    Route::post('/validate', [PromotionController::class, 'validatePromoCode']);
 });
