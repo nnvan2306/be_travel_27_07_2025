@@ -19,12 +19,16 @@ class User extends Authenticatable
         'password',
         'avatar',
         'role',
-        'is_deleted'
+        'is_deleted',
+        'reset_password_otp',
+        'reset_password_otp_expires_at'
     ];
 
     protected $hidden = [
         'password',
         'remember_token',
+        'reset_password_otp',
+        'reset_password_otp_expires_at'
     ];
 
     protected function casts(): array

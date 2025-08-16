@@ -133,4 +133,102 @@ class AuthController extends Controller
             ], 500);
         }
     }
+
+    public function forgotPassword(Request $request)
+    {
+        $validator = Validator::make($request->all(), [
+            'email' => ['required', 'email', 'exists:users,email']
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'message' => 'Email không hợp lệ hoặc không tồn tại',
+                'errors' => $validator->errors(),
+            ], 422);
+        }
+
+        try {
+            $user = User::where('email', $request->email)->first();
+            
+            // Tạo OTP reset password
+            $otp = str_pad(random_int(100000, 999999), 6, '0', STR_PAD_LEFT);
+            $user->reset_password_otp = $otp;
+            $user->reset_password_otp_expires_at = now()->addMinutes(10); // OTP hết hạn sau 10 phút
+            $user->save();
+
+            // Gửi email OTP (sử dụng OtpMail có sẵn)
+            \Mail::to($user->email)->send(new \App\Mail\OtpMail($otp, $user->full_name, 'Đặt lại mật khẩu'));
+
+            return response()->json([
+                'message' => 'Mã OTP đã được gửi đến email của bạn',
+                'user_id' => $user->id
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('Forgot password failed', [
+                'email' => $request->email,
+                'error' => $e->getMessage()
+            ]);
+
+            return response()->json([
+                'message' => 'Có lỗi xảy ra khi gửi email',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    public function resetPassword(Request $request)
+    {
+        $validator = Validator::make($request->all(), [
+            'email' => ['required', 'email', 'exists:users,email'],
+            'otp' => ['required', 'string', 'size:6'],
+            'new_password' => ['required', 'string', 'min:6', 'confirmed']
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'message' => 'Dữ liệu không hợp lệ',
+                'errors' => $validator->errors(),
+            ], 422);
+        }
+
+        try {
+            $user = User::where('email', $request->email)->first();
+
+            // Kiểm tra OTP
+            if ($user->reset_password_otp !== $request->otp) {
+                return response()->json([
+                    'message' => 'Mã OTP không đúng'
+                ], 400);
+            }
+
+            // Kiểm tra thời gian hết hạn
+            if (now()->greaterThan($user->reset_password_otp_expires_at)) {
+                return response()->json([
+                    'message' => 'Mã OTP đã hết hạn'
+                ], 400);
+            }
+
+            // Cập nhật mật khẩu mới
+            $user->password = Hash::make($request->new_password);
+            $user->reset_password_otp = null;
+            $user->reset_password_otp_expires_at = null;
+            $user->save();
+
+            return response()->json([
+                'message' => 'Đặt lại mật khẩu thành công'
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('Reset password failed', [
+                'user_id' => $request->user_id,
+                'error' => $e->getMessage()
+            ]);
+
+            return response()->json([
+                'message' => 'Có lỗi xảy ra khi đặt lại mật khẩu',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
 }
