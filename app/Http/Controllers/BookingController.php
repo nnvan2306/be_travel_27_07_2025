@@ -7,6 +7,10 @@ use App\Models\CustomTour;
 use App\Models\Promotion;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Facades\Mail;
+use App\Mail\BookingCreated;
+use App\Mail\BookingCancelled;
+use App\Mail\BookingStatusUpdated;
 
 class BookingController extends Controller
 {
@@ -132,7 +136,7 @@ class BookingController extends Controller
             return response()->json(['message' => 'Dữ liệu không hợp lệ', 'errors' => $validator->errors()], 422);
         }
 
-        $booking = Booking::find($id);
+        $booking = Booking::with('user')->find($id);
         if (!$booking) {
             return response()->json(['message' => 'Booking không tồn tại'], 404);
         }
@@ -140,6 +144,21 @@ class BookingController extends Controller
         $oldStatus = $booking->status;
         $booking->status = $request->status;
         $booking->save();
+
+        // Gửi email thông báo dựa trên trạng thái mới
+        try {
+            if ($booking->user && $booking->user->email) {
+                if ($request->status === 'cancelled') {
+                    // Gửi email hủy đơn hàng
+                    Mail::to($booking->user->email)->send(new BookingCancelled($booking, $request->cancel_reason ?? null));
+                } else {
+                    // Gửi email cập nhật trạng thái
+                    Mail::to($booking->user->email)->send(new BookingStatusUpdated($booking, $oldStatus, $booking->status));
+                }
+            }
+        } catch (\Exception $e) {
+            \Log::error('Failed to send booking status email: ' . $e->getMessage());
+        }
 
         return response()->json([
             'message' => 'Cập nhật status booking thành công',
@@ -217,6 +236,20 @@ class BookingController extends Controller
         }
 
         $booking = Booking::create($bookingData);
+
+        // Gửi email xác nhận đặt tour
+        try {
+            // Tải quan hệ user để có thông tin email
+            $booking->load(['user', 'tour', 'guide', 'hotel', 'busRoute', 'motorbike', 'customTour']);
+
+            // Chỉ gửi email khi có thông tin user và email hợp lệ
+            if ($booking->user && $booking->user->email) {
+                Mail::to($booking->user->email)->send(new BookingCreated($booking));
+            }
+        } catch (\Exception $e) {
+            // Log lỗi nhưng không làm gián đoạn tiến trình
+            \Log::error('Failed to send booking confirmation email: ' . $e->getMessage());
+        }
 
         // Nếu chọn VNPay thì trả về link thanh toán
         if ($request->payment_method_id === 1 || $request->payment_method_id === "1") {
@@ -432,6 +465,16 @@ class BookingController extends Controller
                     'bank_transaction_no' => $vnp_BankTranNo
                 ]);
 
+                // Gửi email xác nhận thanh toán thành công
+                try {
+                    $booking->load(['user', 'tour']);
+                    if ($booking->user && $booking->user->email) {
+                        Mail::to($booking->user->email)->send(new BookingCreated($booking));
+                    }
+                } catch (\Exception $e) {
+                    \Log::error('Failed to send payment success email: ' . $e->getMessage());
+                }
+
                 // Chuyển hướng về frontend với thông tin thành công
                 return redirect()->away(config('app.frontend_url', 'http://localhost:3000') . '/booking-success?' . http_build_query([
                     'status' => 'success',
@@ -449,6 +492,17 @@ class BookingController extends Controller
                     'status' => 'cancelled',
                     'payment_status' => 'failed'
                 ]);
+
+                // Gửi email thông báo thanh toán thất bại
+                try {
+                    $booking->load(['user', 'tour']);
+                    if ($booking->user && $booking->user->email) {
+                        Mail::to($booking->user->email)
+                            ->send(new BookingCancelled($booking, 'Thanh toán không thành công'));
+                    }
+                } catch (\Exception $e) {
+                    \Log::error('Failed to send payment failed email: ' . $e->getMessage());
+                }
 
                 // Chuyển hướng về frontend với thông tin thất bại
                 return redirect()->away(config('app.frontend_url', 'http://localhost:3000') . '/booking-success?' . http_build_query([
