@@ -52,6 +52,7 @@ class TourController extends Controller
             'price' => 'required|numeric',
             'discount_price' => 'nullable|numeric',
             'duration' => 'nullable|string',
+            'min_people' => 'nullable|integer|min:1',
             'status' => 'nullable|in:visible,hidden',
             'image' => 'required|image|mimes:jpeg,png,jpg|max:2048',
             'images.*' => 'nullable|image|mimes:jpeg,png,jpg|max:2048',
@@ -102,6 +103,7 @@ class TourController extends Controller
                 'price' => $request->price,
                 'discount_price' => $request->discount_price,
                 'duration' => $request->duration,
+                'min_people' => $request->min_people ?? 2,
                 'status' => $request->status ?? 'visible',
                 'image' => $imagePath,
                 'slug' => $slug,
@@ -207,6 +209,7 @@ class TourController extends Controller
             'price' => 'nullable|numeric',
             'discount_price' => 'nullable|numeric',
             'duration' => 'nullable|string',
+            'min_people' => 'nullable|integer|min:1',
             'status' => 'nullable|in:visible,hidden',
             'image' => 'nullable|image|mimes:jpeg,png,jpg|max:2048',
             'images.*' => 'nullable|image|mimes:jpeg,png,jpg|max:2048',
@@ -302,6 +305,11 @@ class TourController extends Controller
             
             if ($request->has('duration')) {
                 $tour->duration = $request->duration;
+                $hasUpdates = true;
+            }
+            
+            if ($request->has('min_people')) {
+                $tour->min_people = $request->min_people;
                 $hasUpdates = true;
             }
             

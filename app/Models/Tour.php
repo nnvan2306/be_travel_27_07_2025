@@ -18,6 +18,7 @@ class Tour extends Model
         'price',
         'discount_price',
         'duration',
+        'min_people',
         'status',
         'is_deleted',
         'slug',
