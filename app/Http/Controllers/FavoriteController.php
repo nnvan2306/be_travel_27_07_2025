@@ -255,4 +255,72 @@ class FavoriteController extends Controller
             'data' => $stats
         ]);
     }
+
+    /**
+     * Toggle trạng thái yêu thích theo tour_id
+     */
+    public function toggle(Request $request): JsonResponse
+    {
+        $request->validate([
+            'tour_id' => 'required|integer|exists:tours,tour_id'
+        ]);
+
+        $userId = Auth::id();
+
+        $favorite = Favorite::where('user_id', $userId)
+            ->where('tour_id', $request->tour_id)
+            ->first();
+
+        if ($favorite) {
+            if ($favorite->is_deleted === 'active') {
+                $favorite->update(['is_deleted' => 'inactive']);
+                return response()->json([
+                    'success' => true,
+                    'message' => 'Đã xóa khỏi yêu thích',
+                    'is_favorited' => false,
+                    'data' => $favorite->fresh()
+                ]);
+            }
+
+            $favorite->update(['is_deleted' => 'active']);
+            return response()->json([
+                'success' => true,
+                'message' => 'Đã thêm vào yêu thích',
+                'is_favorited' => true,
+                'data' => $favorite->fresh()->load(['tour'])
+            ]);
+        }
+
+        $favorite = Favorite::create([
+            'user_id' => $userId,
+            'tour_id' => $request->tour_id,
+            'is_deleted' => 'active'
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Đã thêm vào yêu thích',
+            'is_favorited' => true,
+            'data' => $favorite->load(['tour'])
+        ], 201);
+    }
+
+    /**
+     * Lấy danh sách id tour đã yêu thích (đơn giản, không phân trang)
+     */
+    public function ids(): JsonResponse
+    {
+        $userId = Auth::id();
+        $favorites = Favorite::where('user_id', $userId)
+            ->where('is_deleted', 'active')
+            ->get(['favorite_id', 'tour_id']);
+
+        return response()->json([
+            'success' => true,
+            'data' => [
+                'ids' => $favorites->pluck('tour_id')->map(fn($v) => (int) $v)->values(),
+                'map' => $favorites->mapWithKeys(fn($f) => [ (int) $f->tour_id => (int) $f->favorite_id ])
+            ]
+        ]);
+    }
 }

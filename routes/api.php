@@ -143,6 +143,8 @@ Route::middleware('auth:sanctum')->group(function () {
     // Favorites
     Route::prefix('favorites')->group(function () {
         Route::get('/my-favorites', [FavoriteController::class, 'myFavorites']);
+        Route::get('/ids', [FavoriteController::class, 'ids']);
+        Route::post('/toggle', [FavoriteController::class, 'toggle']);
         Route::post('/', [FavoriteController::class, 'store']);
         Route::delete('/{id}', [FavoriteController::class, 'destroy']);
     });
