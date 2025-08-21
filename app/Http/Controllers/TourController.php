@@ -14,14 +14,45 @@ use Illuminate\Support\Facades\Log;
 
 class TourController extends Controller
 {
+    // Toggle status (active/inactive) cho tour
+    public function toggleStatus($id)
+    {
+        $tour = Tour::findOrFail($id);
+        if ($tour->is_deleted === self::STATUS_INACTIVE) {
+            // Nếu đang bị ẩn thì bật lại
+            $tour->is_deleted = self::STATUS_ACTIVE;
+            $message = 'Tour đã được kích hoạt';
+        } else {
+            // Nếu đang active thì ẩn đi
+            $tour->is_deleted = self::STATUS_INACTIVE;
+            $message = 'Tour đã được vô hiệu hóa';
+        }
+        $tour->save();
+        return response()->json([
+            'message' => $message,
+            'tour' => $tour,
+        ]);
+    }
     const STATUS_ACTIVE = 'active';
     const STATUS_INACTIVE = 'inactive';
 
     // Danh sách tour
    public function index(Request $request)
 {
-    $query = Tour::with(['album.images', 'category', 'destinations', 'schedules', 'guide', 'busRoute'])
-        ->where('is_deleted', self::STATUS_ACTIVE);
+    $query = Tour::with(['album.images', 'category', 'destinations', 'schedules', 'guide', 'busRoute']);
+
+    // Lấy user từ token nếu có (chỉ có khi gọi qua route có middleware auth:sanctum)
+    $user = null;
+    if (auth('sanctum')->check()) {
+        $user = auth('sanctum')->user();
+    } else if (method_exists($request, 'user')) {
+        $user = $request->user();
+    }
+
+    // Nếu là admin thì lấy tất cả, còn lại chỉ lấy tour đang hoạt động
+    if (!$user || ($user->role !== 'admin' && $user->role !== 'superadmin')) {
+        $query->where('is_deleted', self::STATUS_ACTIVE);
+    }
 
     // Lọc theo category_id nếu có
     if ($request->has('category_id')) {
@@ -541,4 +572,6 @@ class TourController extends Controller
 
         return response()->json($tour);
     }
+
+        // Toggle status (active/inactive) cho tour
 }
