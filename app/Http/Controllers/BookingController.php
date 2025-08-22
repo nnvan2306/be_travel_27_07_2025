@@ -5,6 +5,8 @@ namespace App\Http\Controllers;
 use App\Models\Booking;
 use App\Models\CustomTour;
 use App\Models\Promotion;
+use App\Models\Tour;
+use App\Services\BookingValidationService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\Mail;
@@ -14,6 +16,13 @@ use App\Mail\BookingStatusUpdated;
 
 class BookingController extends Controller
 {
+    protected $bookingValidationService;
+
+    public function __construct(BookingValidationService $bookingValidationService)
+    {
+        $this->bookingValidationService = $bookingValidationService;
+    }
+
     // Lấy danh sách booking còn hoạt động với đầy đủ relationships
     public function index()
     {
@@ -198,6 +207,31 @@ class BookingController extends Controller
             return response()->json(['message' => 'Dữ liệu không hợp lệ', 'errors' => $validator->errors()], 422);
         }
 
+        // Tính toán ngày kết thúc
+        $endDate = $this->bookingValidationService->calculateEndDate(
+            $request->start_date,
+            $request->tour_id,
+            $request->dataCustom['duration'] ?? null
+        );
+
+        // Kiểm tra availability của các dịch vụ
+        $validationData = [
+            'start_date' => $request->start_date,
+            'end_date' => $endDate,
+            'quantity' => $request->quantity,
+            'bus_route_id' => $request->bus_route_id,
+            'motorbike_id' => $request->motorbike_id,
+        ];
+
+        $validation = $this->bookingValidationService->validateBookingServices($validationData);
+        
+        if (!$validation['valid']) {
+            return response()->json([
+                'message' => 'Có lỗi xảy ra khi kiểm tra availability',
+                'errors' => $validation['errors']
+            ], 422);
+        }
+
         // Kiểm tra xem hướng dẫn viên đã được đặt vào ngày này chưa
         if ($request->guide_id) {
             $requestDate = $request->start_date;
@@ -234,6 +268,10 @@ class BookingController extends Controller
         if ($customTourId) {
             $bookingData['custom_tour_id'] = $customTourId;
         }
+        
+        // Thêm end_date và service_quantity
+        $bookingData['end_date'] = $endDate;
+        $bookingData['service_quantity'] = $request->quantity;
 
         $booking = Booking::create($bookingData);
 
@@ -554,6 +592,105 @@ class BookingController extends Controller
                 'hasBooked' => false
             ], 500);
         }
+    }
+
+    /**
+     * Kiểm tra availability của xe khách
+     */
+    public function checkBusRouteAvailability(Request $request)
+    {
+        $validator = Validator::make($request->all(), [
+            'bus_route_id' => 'required|exists:bus_routes,bus_route_id',
+            'start_date' => 'required|date',
+            'end_date' => 'required|date|after_or_equal:start_date',
+            'quantity' => 'required|integer|min:1',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Dữ liệu không hợp lệ',
+                'errors' => $validator->errors()
+            ], 422);
+        }
+
+        $result = $this->bookingValidationService->checkBusRouteAvailability(
+            $request->bus_route_id,
+            $request->start_date,
+            $request->end_date,
+            $request->quantity
+        );
+
+        return response()->json([
+            'success' => true,
+            'data' => $result
+        ]);
+    }
+
+    /**
+     * Kiểm tra availability của xe máy
+     */
+    public function checkMotorbikeAvailability(Request $request)
+    {
+        $validator = Validator::make($request->all(), [
+            'motorbike_id' => 'required|exists:motorbikes,motorbike_id',
+            'start_date' => 'required|date',
+            'end_date' => 'required|date|after_or_equal:start_date',
+            'quantity' => 'required|integer|min:1',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Dữ liệu không hợp lệ',
+                'errors' => $validator->errors()
+            ], 422);
+        }
+
+        $result = $this->bookingValidationService->checkMotorbikeAvailability(
+            $request->motorbike_id,
+            $request->start_date,
+            $request->end_date,
+            $request->quantity
+        );
+
+        return response()->json([
+            'success' => true,
+            'data' => $result
+        ]);
+    }
+
+    /**
+     * Kiểm tra availability của tất cả dịch vụ trong một booking
+     */
+    public function checkBookingAvailability(Request $request)
+    {
+        $validator = Validator::make($request->all(), [
+            'start_date' => 'required|date',
+            'end_date' => 'required|date|after_or_equal:start_date',
+            'quantity' => 'required|integer|min:1',
+            'bus_route_id' => 'nullable|exists:bus_routes,bus_route_id',
+            'motorbike_id' => 'nullable|exists:motorbikes,motorbike_id',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Dữ liệu không hợp lệ',
+                'errors' => $validator->errors()
+            ], 422);
+        }
+
+        $validationData = $request->only([
+            'start_date', 'end_date', 'quantity', 'bus_route_id', 'motorbike_id'
+        ]);
+
+        $result = $this->bookingValidationService->validateBookingServices($validationData);
+
+        return response()->json([
+            'success' => true,
+            'data' => $result
+        ]);
     }
 
     /**

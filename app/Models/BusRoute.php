@@ -16,6 +16,7 @@ class BusRoute extends Model
         'vehicle_type',
         'price',
         'seats',
+        'total_seats',
         'license_plate',
         'description',
         'rating',
@@ -30,6 +31,7 @@ class BusRoute extends Model
         'rating' => 'decimal:2',
         'rating_count' => 'integer',
         'seats' => 'integer',
+        'total_seats' => 'integer',
         'album_id' => 'integer',
     ];
 

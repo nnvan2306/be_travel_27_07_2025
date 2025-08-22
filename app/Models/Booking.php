@@ -20,6 +20,7 @@ class Booking extends Model
         'motorbike_id',
         'custom_tour_id',
         'quantity',
+        'service_quantity',
         'start_date',
         'end_date',
         'total_price',
@@ -40,6 +41,7 @@ class Booking extends Model
         'status' => 'string',
         'payment_method' => 'string',
         'is_deleted' => 'string',
+        'service_quantity' => 'integer',
     ];
 
     // Relationships

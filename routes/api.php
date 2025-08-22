@@ -49,6 +49,11 @@ Route::get('/destinations/highlights', [DestinationController::class, 'highlight
 Route::get('/destinations/slug/{slug}', [DestinationController::class, 'showBySlug']);
 Route::get('/bookings/check-user-tour/{user_id}/{tour_id}', [BookingController::class, 'checkUserBookedTour']);
 
+// Booking availability check routes
+Route::post('/bookings/check-bus-availability', [BookingController::class, 'checkBusRouteAvailability']);
+Route::post('/bookings/check-motorbike-availability', [BookingController::class, 'checkMotorbikeAvailability']);
+Route::post('/bookings/check-availability', [BookingController::class, 'checkBookingAvailability']);
+
 Route::get('/destination-categories', [DestinationCategoryController::class, 'index']);
 
 Route::apiResource('tour-destinations', TourDestinationController::class);

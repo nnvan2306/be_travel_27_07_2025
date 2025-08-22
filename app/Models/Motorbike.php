@@ -13,6 +13,7 @@ class Motorbike extends Model
 
     protected $fillable = [
         'bike_type',
+        'total_quantity',
         'price_per_day',
         'location',
         'license_plate',
@@ -28,6 +29,7 @@ class Motorbike extends Model
         'price_per_day' => 'float',
         'average_rating' => 'float',
         'total_reviews' => 'integer',
+        'total_quantity' => 'integer',
     ];
 
     // Quan hệ với Album (nếu có bảng albums)
