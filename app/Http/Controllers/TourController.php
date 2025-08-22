@@ -37,40 +37,40 @@ class TourController extends Controller
     const STATUS_INACTIVE = 'inactive';
 
     // Danh sách tour
-   public function index(Request $request)
-{
-    $query = Tour::with(['album.images', 'category', 'destinations', 'schedules', 'guide', 'busRoute']);
+    public function index(Request $request)
+    {
+        $query = Tour::with(['album.images', 'category', 'destinations', 'schedules', 'guide', 'busRoute']);
 
-    // Lấy user từ token nếu có (chỉ có khi gọi qua route có middleware auth:sanctum)
-    $user = null;
-    if (auth('sanctum')->check()) {
-        $user = auth('sanctum')->user();
-    } else if (method_exists($request, 'user')) {
-        $user = $request->user();
+        // Lấy user từ token nếu có (chỉ có khi gọi qua route có middleware auth:sanctum)
+        $user = null;
+        if (auth('sanctum')->check()) {
+            $user = auth('sanctum')->user();
+        } else if (method_exists($request, 'user')) {
+            $user = $request->user();
+        }
+
+        // Nếu là admin thì lấy tất cả, còn lại chỉ lấy tour đang hoạt động
+        if (!$user || ($user->role !== 'admin' && $user->role !== 'superadmin')) {
+            $query->where('is_deleted', self::STATUS_ACTIVE);
+        }
+
+        // Lọc theo category_id nếu có
+        if ($request->has('category_id')) {
+            $query->where('category_id', $request->category_id);
+        }
+
+        // Lọc theo price nếu có (ví dụ: price_min, price_max)
+        if ($request->has('price_min')) {
+            $query->where('price', '>=', $request->price_min);
+        }
+        if ($request->has('price_max')) {
+            $query->where('price', '<=', $request->price_max);
+        }
+
+        $tours = $query->get();
+
+        return response()->json($tours);
     }
-
-    // Nếu là admin thì lấy tất cả, còn lại chỉ lấy tour đang hoạt động
-    if (!$user || ($user->role !== 'admin' && $user->role !== 'superadmin')) {
-        $query->where('is_deleted', self::STATUS_ACTIVE);
-    }
-
-    // Lọc theo category_id nếu có
-    if ($request->has('category_id')) {
-        $query->where('category_id', $request->category_id);
-    }
-
-    // Lọc theo price nếu có (ví dụ: price_min, price_max)
-    if ($request->has('price_min')) {
-        $query->where('price', '>=', $request->price_min);
-    }
-    if ($request->has('price_max')) {
-        $query->where('price', '<=', $request->price_max);
-    }
-
-    $tours = $query->get();
-
-    return response()->json($tours);
-}
 
     // Tạo mới tour
     public function store(Request $request)
@@ -149,7 +149,7 @@ class TourController extends Controller
                         $originalName = $img->getClientOriginalName();
                         $sanitizedName = preg_replace('/[^a-zA-Z0-9._-]/', '_', $originalName);
                         $fileName = time() . '_' . $sanitizedName;
-                        
+
                         $path = $img->storeAs('album_images', $fileName, 'public');
                         AlbumImage::create([
                             'album_id' => $album->album_id,
@@ -277,16 +277,16 @@ class TourController extends Controller
                         Storage::disk('public')->delete($tour->image);
                         Log::info('Deleted old image', ['path' => $tour->image]);
                     }
-                    
+
                     // Sanitize tên file
                     $originalName = $request->file('image')->getClientOriginalName();
                     $sanitizedName = preg_replace('/[^a-zA-Z0-9._-]/', '_', $originalName);
                     $fileName = time() . '_' . $sanitizedName;
-                    
+
                     // Lưu ảnh mới
                     $imagePath = $request->file('image')->storeAs('tours', $fileName, 'public');
                     $tour->image = $imagePath;
-                    
+
                     Log::info('Main image uploaded successfully', ['path' => $imagePath]);
                 } catch (\Exception $e) {
                     Log::error('Error uploading main image', ['error' => $e->getMessage()]);
@@ -296,15 +296,15 @@ class TourController extends Controller
 
             // Cập nhật thông tin tour
             $hasUpdates = false;
-            
+
             if ($request->has('category_id')) {
                 $tour->category_id = $request->category_id;
                 $hasUpdates = true;
             }
-            
+
             if ($request->has('tour_name') && $request->tour_name !== $tour->tour_name) {
                 $tour->tour_name = $request->tour_name;
-                
+
                 // Cập nhật slug khi tour_name thay đổi
                 $slug = Str::slug($request->tour_name);
                 if (Tour::where('slug', $slug)->where('tour_id', '!=', $tour->tour_id)->exists()) {
@@ -313,47 +313,47 @@ class TourController extends Controller
                 $tour->slug = $slug;
                 $hasUpdates = true;
             }
-            
+
             if ($request->has('description')) {
                 $tour->description = $request->description;
                 $hasUpdates = true;
             }
-            
+
             if ($request->has('itinerary')) {
                 $tour->itinerary = $request->itinerary;
                 $hasUpdates = true;
             }
-            
+
             if ($request->has('price')) {
                 $tour->price = $request->price;
                 $hasUpdates = true;
             }
-            
+
             if ($request->has('discount_price')) {
                 $tour->discount_price = $request->discount_price ?: null;
                 $hasUpdates = true;
             }
-            
+
             if ($request->has('duration')) {
                 $tour->duration = $request->duration;
                 $hasUpdates = true;
             }
-            
+
             if ($request->has('min_people')) {
                 $tour->min_people = $request->min_people;
                 $hasUpdates = true;
             }
-            
+
             if ($request->has('status')) {
                 $tour->status = $request->status;
                 $hasUpdates = true;
             }
-            
+
             if ($request->has('guide_id')) {
                 $tour->guide_id = $request->guide_id ?: null;
                 $hasUpdates = true;
             }
-            
+
             if ($request->has('bus_route_id')) {
                 $tour->bus_route_id = $request->bus_route_id ?: null;
                 $hasUpdates = true;
@@ -377,7 +377,7 @@ class TourController extends Controller
             if ($request->hasFile('cover_image')) {
                 try {
                     \Log::info('Processing cover image');
-                    
+
                     // Xóa ảnh cover cũ
                     if ($tour->cover_image && Storage::disk('public')->exists($tour->cover_image)) {
                         Storage::disk('public')->delete($tour->cover_image);
@@ -388,7 +388,7 @@ class TourController extends Controller
                     $coverOriginalName = $coverImage->getClientOriginalName();
                     $sanitizedCoverName = preg_replace('/[^a-zA-Z0-9._-]/', '_', $coverOriginalName);
                     $coverFileName = time() . '_cover_' . $sanitizedCoverName;
-                    
+
                     $coverPath = $coverImage->storeAs('tour_covers', $coverFileName, 'public');
                     $tour->cover_image = $coverPath;
                     $tour->save();
@@ -441,7 +441,7 @@ class TourController extends Controller
                                 $sanitizedName = preg_replace('/[^a-zA-Z0-9._-]/', '_', $originalName);
                                 $fileName = time() . '_' . $index . '_' . $sanitizedName;
                                 $path = $img->storeAs('album_images', $fileName, 'public');
-                                
+
                                 AlbumImage::create([
                                     'album_id' => $tour->album_id,
                                     'image_url' => $path,
@@ -464,11 +464,11 @@ class TourController extends Controller
                     'tour_id' => $tour->tour_id,
                     'schedules_data' => $request->get('schedules')
                 ]);
-                
+
                 // Xóa tất cả schedule cũ
                 $deletedCount = $tour->schedules()->delete();
                 \Log::info('Deleted old schedules', ['count' => $deletedCount]);
-                
+
                 // Thêm schedule mới
                 $schedules = $request->get('schedules');
                 if (is_array($schedules)) {
@@ -476,7 +476,7 @@ class TourController extends Controller
                         if (isset($schedule['title']) && !empty(trim($schedule['title']))) {
                             $newSchedule = TourSchedule::create([
                                 'tour_id' => $tour->tour_id,
-                                'day' => isset($schedule['day']) ? (int)$schedule['day'] : ($index + 1),
+                                'day' => isset($schedule['day']) ? (int) $schedule['day'] : ($index + 1),
                                 'start_time' => null, // Không cần start_time nữa
                                 'end_time' => null,   // Không cần end_time nữa
                                 'title' => trim($schedule['title']),
@@ -573,5 +573,5 @@ class TourController extends Controller
         return response()->json($tour);
     }
 
-        // Toggle status (active/inactive) cho tour
+    // Toggle status (active/inactive) cho tour
 }

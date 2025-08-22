@@ -1,0 +1,10 @@
+# Test without htaccess rules
+# If this works, the issue is with rewrite rules
+
+DirectoryIndex index.php index.html
+
+# Basic security
+<Files ".env">
+    Order allow,deny
+    Deny from all
+</Files>

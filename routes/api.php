@@ -73,6 +73,9 @@ Route::get('/blogs/published', [BlogController::class, 'published']);
 Route::get('/blogs/popular', [BlogController::class, 'popular']);
 Route::post('/blogs/{id}/update-with-files', [BlogController::class, 'updateWithFiles']);
 
+Route::post('/tours/{id}/toggle', [TourController::class, 'toggleStatus']);
+
+
 // Test route for file upload
 Route::post('/test-tour-upload', function (Request $request) {
     $response = [
@@ -156,8 +159,8 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // Tours
     Route::apiResource('tours', TourController::class)->only(['store', 'update', 'destroy']);
-        // Thêm route toggle status cho tour
-        Route::post('/tours/{id}/toggle', [TourController::class, 'toggleStatus']);
+    // Thêm route toggle status cho tour
+    // Route::post('/tours/{id}/toggle', [TourController::class, 'toggleStatus']);
 
     // Tour Categories
     Route::apiResource('tour-categories', TourCategoryController::class)->only(['store', 'update', 'destroy']);

@@ -250,14 +250,8 @@ class SearchController extends Controller
         // Tìm kiếm trên các cột có thể là text
         $query->where(function ($q) use ($searchQuery, $columns) {
             $textColumns = array_intersect($columns, [
-                'title',
-                'name',
-                'description',
-                'short_description',
-                'content',
-                'summary',
-                'overview',
-                'highlights'
+                'tour_name',
+                "description"
             ]);
 
             $firstColumn = true;
