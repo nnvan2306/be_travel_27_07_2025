@@ -14,7 +14,11 @@ class UpdateServiceDataSeeder extends Seeder
     {
         // Cập nhật bus_routes với total_seats
         DB::table('bus_routes')->update([
-            'total_seats' => DB::raw('COALESCE(seats, 45)'), // Mặc định 45 ghế nếu seats null
+            'total_seats' => DB::raw('CASE 
+                WHEN total_seats > 0 THEN total_seats 
+                WHEN seats > 0 THEN seats 
+                ELSE 45 
+            END'),
         ]);
 
         // Cập nhật motorbikes với total_quantity

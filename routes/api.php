@@ -54,6 +54,10 @@ Route::post('/bookings/check-bus-availability', [BookingController::class, 'chec
 Route::post('/bookings/check-motorbike-availability', [BookingController::class, 'checkMotorbikeAvailability']);
 Route::post('/bookings/check-availability', [BookingController::class, 'checkBookingAvailability']);
 
+// Debug routes
+Route::post('/bookings/debug-bus-route', [BookingController::class, 'debugBusRouteData']);
+Route::post('/bookings/update-bus-route-data', [BookingController::class, 'updateBusRouteData']);
+
 Route::get('/destination-categories', [DestinationCategoryController::class, 'index']);
 
 Route::apiResource('tour-destinations', TourDestinationController::class);

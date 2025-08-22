@@ -24,11 +24,32 @@ class BookingValidationService
             ];
         }
 
+        // Sử dụng total_seats nếu có, nếu không thì dùng seats
+        $totalSeats = $busRoute->total_seats > 0 ? $busRoute->total_seats : $busRoute->seats;
+        
+        // Nếu vẫn không có thì mặc định 45 ghế
+        if ($totalSeats <= 0) {
+            $totalSeats = 45;
+        }
+
         // Lấy tổng số ghế đã được đặt trong khoảng thời gian
         $bookedSeats = $this->getBookedBusSeats($busRouteId, $startDate, $endDate, $excludeBookingId);
         
         // Tính số ghế còn trống
-        $availableSeats = $busRoute->total_seats - $bookedSeats;
+        $availableSeats = $totalSeats - $bookedSeats;
+        
+        // Debug logging
+        \Log::info('Bus Route Availability Calculation', [
+            'bus_route_id' => $busRouteId,
+            'total_seats' => $busRoute->total_seats,
+            'seats' => $busRoute->seats,
+            'used_total_seats' => $totalSeats,
+            'booked_seats' => $bookedSeats,
+            'available_seats' => $availableSeats,
+            'requested_quantity' => $quantity,
+            'start_date' => $startDate,
+            'end_date' => $endDate
+        ]);
         
         if ($quantity > $availableSeats) {
             return [
@@ -111,7 +132,20 @@ class BookingValidationService
             $query->where('booking_id', '!=', $excludeBookingId);
         }
 
-        return $query->sum('service_quantity');
+        // Sử dụng quantity thay vì service_quantity để tính số ghế đã đặt
+        $bookedSeats = $query->sum('quantity');
+        
+        // Debug logging
+        \Log::info('Bus Route Availability Check', [
+            'bus_route_id' => $busRouteId,
+            'start_date' => $startDate,
+            'end_date' => $endDate,
+            'booked_seats' => $bookedSeats,
+            'query_sql' => $query->toSql(),
+            'query_bindings' => $query->getBindings()
+        ]);
+
+        return $bookedSeats;
     }
 
     /**
@@ -142,7 +176,8 @@ class BookingValidationService
             $query->where('booking_id', '!=', $excludeBookingId);
         }
 
-        return $query->sum('service_quantity');
+        // Sử dụng quantity thay vì service_quantity để tính số xe máy đã đặt
+        return $query->sum('quantity');
     }
 
     /**

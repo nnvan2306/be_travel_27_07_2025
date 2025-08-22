@@ -13,6 +13,8 @@ use Illuminate\Support\Facades\Mail;
 use App\Mail\BookingCreated;
 use App\Mail\BookingCancelled;
 use App\Mail\BookingStatusUpdated;
+use App\Models\BusRoute; // Added this import for debugBusRouteData
+use Illuminate\Support\Facades\DB; // Added this import for updateBusRouteData
 
 class BookingController extends Controller
 {
@@ -755,5 +757,113 @@ class BookingController extends Controller
             ],
             'message' => 'Áp dụng mã khuyến mãi thành công!'
         ]);
+    }
+
+    /**
+     * Debug endpoint để kiểm tra dữ liệu xe khách và booking
+     */
+    public function debugBusRouteData(Request $request)
+    {
+        $busRouteId = $request->input('bus_route_id');
+        $startDate = $request->input('start_date');
+        $endDate = $request->input('end_date');
+
+        if (!$busRouteId || !$startDate || !$endDate) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Thiếu thông tin bus_route_id, start_date, end_date'
+            ], 400);
+        }
+
+        // Lấy thông tin xe khách
+        $busRoute = BusRoute::find($busRouteId);
+        if (!$busRoute) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Không tìm thấy xe khách'
+            ], 404);
+        }
+
+        // Lấy các booking trong khoảng thời gian
+        $bookings = Booking::where('bus_route_id', $busRouteId)
+            ->where('is_deleted', 'active')
+            ->whereIn('status', ['pending', 'confirmed'])
+            ->where(function ($q) use ($startDate, $endDate) {
+                $q->where(function ($subQ) use ($startDate, $endDate) {
+                    $subQ->where('start_date', '>=', $startDate)
+                         ->where('start_date', '<=', $endDate);
+                })->orWhere(function ($subQ) use ($startDate, $endDate) {
+                    $subQ->where('end_date', '>=', $startDate)
+                         ->where('end_date', '<=', $endDate);
+                })->orWhere(function ($subQ) use ($startDate, $endDate) {
+                    $subQ->where('start_date', '<=', $startDate)
+                         ->where('end_date', '>=', $endDate);
+                });
+            })
+            ->get();
+
+        $totalBookedSeats = $bookings->sum('quantity');
+        $availableSeats = $busRoute->total_seats - $totalBookedSeats;
+
+        return response()->json([
+            'success' => true,
+            'data' => [
+                'bus_route' => [
+                    'id' => $busRoute->bus_route_id,
+                    'name' => $busRoute->route_name,
+                    'total_seats' => $busRoute->total_seats,
+                    'seats' => $busRoute->seats,
+                    'is_deleted' => $busRoute->is_deleted
+                ],
+                'bookings' => $bookings->map(function ($booking) {
+                    return [
+                        'id' => $booking->booking_id,
+                        'quantity' => $booking->quantity,
+                        'service_quantity' => $booking->service_quantity,
+                        'start_date' => $booking->start_date,
+                        'end_date' => $booking->end_date,
+                        'status' => $booking->status,
+                        'is_deleted' => $booking->is_deleted
+                    ];
+                }),
+                'calculation' => [
+                    'total_booked_seats' => $totalBookedSeats,
+                    'available_seats' => $availableSeats,
+                    'start_date' => $startDate,
+                    'end_date' => $endDate
+                ]
+            ]
+        ]);
+    }
+
+    /**
+     * Cập nhật dữ liệu xe khách
+     */
+    public function updateBusRouteData()
+    {
+        try {
+            // Cập nhật bus_routes với total_seats
+            DB::table('bus_routes')->update([
+                'total_seats' => DB::raw('CASE 
+                    WHEN total_seats > 0 THEN total_seats 
+                    WHEN seats > 0 THEN seats 
+                    ELSE 45 
+                END'),
+            ]);
+
+            // Lấy danh sách xe khách để kiểm tra
+            $busRoutes = BusRoute::select('bus_route_id', 'route_name', 'seats', 'total_seats', 'is_deleted')->get();
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Cập nhật dữ liệu xe khách thành công',
+                'data' => $busRoutes
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Lỗi khi cập nhật dữ liệu: ' . $e->getMessage()
+            ], 500);
+        }
     }
 }
