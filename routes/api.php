@@ -25,7 +25,8 @@ use App\Http\Controllers\{
     TourScheduleController,
     BlogController,
     DashboardController,
-    SearchController // Thêm SearchController vào đây
+    SearchController,
+    ContactController
 };
 
 // ================= PUBLIC ROUTES =================
@@ -35,6 +36,11 @@ Route::post('/otp/verify', [OtpController::class, 'verifyOtp']);
 Route::post('/login', [AuthController::class, 'login']);
 Route::post('/forgot-password', [AuthController::class, 'forgotPassword']);
 Route::post('/reset-password', [AuthController::class, 'resetPassword']);
+
+Route::apiResource('contacts', ContactController::class)->only(['index', 'show', 'update', 'destroy']);
+Route::post('/contacts', [ContactController::class, 'store']);
+Route::put('/contacts/{id}/status', [ContactController::class, 'updateStatus']);
+Route::delete('/contacts/{id}', [ContactController::class, 'softDelete']);
 
 Route::get('/tours', [TourController::class, 'index']);
 Route::get('/tours/{id}', [TourController::class, 'show']);
