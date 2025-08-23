@@ -217,19 +217,28 @@ class FavoriteController extends Controller
     /**
      * Lấy danh sách yêu thích của user hiện tại
      */
-    public function myFavorites(): JsonResponse
-    {
-        $favorites = Favorite::with(['tour'])
-            ->where('user_id', Auth::id())
-            ->active()
-            ->orderBy('created_at', 'desc')
-            ->paginate(10);
+     public function myFavorites(): JsonResponse
+{
+    $favorites = Favorite::with(['tour' => function($q) {
+            $q->where('is_deleted', 'active');
+        }])
+        ->where('user_id', Auth::id())
+        ->active()
+        ->orderBy('created_at', 'desc')
+        ->paginate(10);
 
-        return response()->json([
-            'success' => true,
-            'data' => $favorites
-        ]);
-    }
+    // Chỉ giữ lại favorite có tour đang active (tour != null)
+    $favorites->setCollection(
+        $favorites->getCollection()->filter(function ($favorite) {
+            return $favorite->tour !== null;
+        })
+    );
+
+    return response()->json([
+        'success' => true,
+        'data' => $favorites
+    ]);
+}
 
     /**
      * Thống kê favorites
