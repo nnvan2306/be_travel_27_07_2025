@@ -26,7 +26,8 @@ use App\Http\Controllers\{
     BlogController,
     DashboardController,
     SearchController,
-    ContactController
+    ContactController,
+    CompanyContactController
 };
 
 // ================= PUBLIC ROUTES =================
@@ -41,6 +42,11 @@ Route::apiResource('contacts', ContactController::class)->only(['index', 'show',
 Route::post('/contacts', [ContactController::class, 'store']);
 Route::put('/contacts/{id}/status', [ContactController::class, 'updateStatus']);
 Route::delete('/contacts/{id}', [ContactController::class, 'softDelete']);
+
+// Company contact routes
+Route::get('/company-contacts', [CompanyContactController::class, 'index']);
+Route::apiResource('admin/company-contacts', CompanyContactController::class)->except(['index']);
+Route::get('/admin/company-contacts', [CompanyContactController::class, 'adminIndex']);
 
 Route::get('/tours', [TourController::class, 'index']);
 Route::get('/tours/{id}', [TourController::class, 'show']);
