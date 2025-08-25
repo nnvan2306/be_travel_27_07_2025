@@ -6,6 +6,8 @@ use App\Models\Booking;
 use App\Models\CustomTour;
 use App\Models\Promotion;
 use App\Models\Tour;
+use App\Models\TourDeparture;
+use App\Models\User;
 use App\Services\BookingValidationService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
@@ -15,6 +17,9 @@ use App\Mail\BookingCancelled;
 use App\Mail\BookingStatusUpdated;
 use App\Models\BusRoute; // Added this import for debugBusRouteData
 use Illuminate\Support\Facades\DB; // Added this import for updateBusRouteData
+use Illuminate\Support\Str; // Added this import for Str::random()
+use Illuminate\Support\Facades\Hash; // Added this import for Hash::make()
+use Illuminate\Support\Facades\Log; // Added this import for Log::error()
 
 class BookingController extends Controller
 {
@@ -167,8 +172,8 @@ class BookingController extends Controller
                     Mail::to($booking->user->email)->send(new BookingStatusUpdated($booking, $oldStatus, $booking->status));
                 }
             }
-        } catch (\Exception $e) {
-            \Log::error('Failed to send booking status email: ' . $e->getMessage());
+        } catch (Exception $e) {
+            Log::error('Failed to send booking status email: ' . $e->getMessage());
         }
 
         return response()->json([
@@ -185,28 +190,118 @@ class BookingController extends Controller
     // Tạo booking mới
     public function store(Request $request)
     {
-        $validator = Validator::make($request->all(), [
-            'user_id' => 'required|exists:users,id',
-            'tour_id' => 'nullable|exists:tours,tour_id',
-            'custom_tour_id' => 'nullable|exists:custom_tours,custom_tour_id',
-            'guide_id' => 'nullable|exists:guides,guide_id',
-            'hotel_id' => 'nullable|exists:hotels,hotel_id',
-            'bus_route_id' => 'nullable|exists:bus_routes,bus_route_id',
-            'motorbike_id' => 'nullable|exists:motorbikes,motorbike_id',
-            'quantity' => 'required|integer|min:1',
-            'start_date' => 'required|date',
-            'total_price' => 'required|numeric|min:0',
-            'status' => 'nullable|in:pending,confirmed,cancelled,completed',
-            'cancel_reason' => 'nullable|string',
-            'dataCustom' => 'nullable|array',
-            'dataCustom.duration' => 'nullable|string',
-            'dataCustom.vehicle' => 'nullable|string',
-            'dataCustom.note' => 'nullable|string',
-            'dataCustom.destination_id' => 'nullable|exists:destinations,destination_id',
-        ]);
+        // Kiểm tra xem có phải là guest booking không
+        $isGuestBooking = $request->has('guest_info');
+        
+        if ($isGuestBooking) {
+            // Validation cho guest booking
+            $validator = Validator::make($request->all(), [
+                'guest_info' => 'required|array',
+                'guest_info.name' => 'required|string|max:255',
+                'guest_info.email' => 'required|email|max:255',
+                'guest_info.phone' => 'required|string|max:20',
+                'tour_id' => 'nullable|exists:tours,tour_id',
+                'departure_id' => 'nullable|exists:tour_departures,departure_id',
+                'custom_tour_id' => 'nullable|exists:custom_tours,custom_tour_id',
+                'guide_id' => 'nullable|exists:guides,guide_id',
+                'hotel_id' => 'nullable|exists:hotels,hotel_id',
+                'bus_route_id' => 'nullable|exists:bus_routes,bus_route_id',
+                'motorbike_id' => 'nullable|exists:motorbikes,motorbike_id',
+                'quantity' => 'required|integer|min:1',
+                'start_date' => 'required|date',
+                'total_price' => 'required|numeric|min:0',
+                'status' => 'nullable|in:pending,confirmed,cancelled,completed',
+                'cancel_reason' => 'nullable|string',
+                'dataCustom' => 'nullable|array',
+                'dataCustom.duration' => 'nullable|string',
+                'dataCustom.vehicle' => 'nullable|string',
+                'dataCustom.note' => 'nullable|string',
+                'dataCustom.destination_id' => 'nullable|exists:destinations,destination_id',
+            ]);
+        } else {
+            // Validation cho user đã đăng nhập
+            $validator = Validator::make($request->all(), [
+                'user_id' => 'required|exists:users,id',
+                'tour_id' => 'nullable|exists:tours,tour_id',
+                'departure_id' => 'nullable|exists:tour_departures,departure_id',
+                'custom_tour_id' => 'nullable|exists:custom_tours,custom_tour_id',
+                'guide_id' => 'nullable|exists:guides,guide_id',
+                'hotel_id' => 'nullable|exists:hotels,hotel_id',
+                'bus_route_id' => 'nullable|exists:bus_routes,bus_route_id',
+                'motorbike_id' => 'nullable|exists:motorbikes,motorbike_id',
+                'quantity' => 'required|integer|min:1',
+                'start_date' => 'required|date',
+                'total_price' => 'required|numeric|min:0',
+                'status' => 'nullable|in:pending,confirmed,cancelled,completed',
+                'cancel_reason' => 'nullable|string',
+                'dataCustom' => 'nullable|array',
+                'dataCustom.duration' => 'nullable|string',
+                'dataCustom.vehicle' => 'nullable|string',
+                'dataCustom.note' => 'nullable|string',
+                'dataCustom.destination_id' => 'nullable|exists:destinations,destination_id',
+            ]);
+        }
 
         if ($validator->fails()) {
             return response()->json(['message' => 'Dữ liệu không hợp lệ', 'errors' => $validator->errors()], 422);
+        }
+
+        // Xử lý guest booking - tạo user mới
+        $userId = null;
+        if ($isGuestBooking) {
+            try {
+                // Kiểm tra email đã tồn tại chưa
+                $existingUser = User::where('email', $request->guest_info['email'])->first();
+                
+                if ($existingUser) {
+                    // Nếu email đã tồn tại, sử dụng user đó
+                    $userId = $existingUser->id;
+                    
+                    // Cập nhật thông tin nếu cần
+                    $existingUser->update([
+                        'full_name' => $request->guest_info['name'],
+                        'phone' => $request->guest_info['phone'],
+                    ]);
+                } else {
+                    // Tạo user mới
+                    $newUser = User::create([
+                        'full_name' => $request->guest_info['name'],
+                        'email' => $request->guest_info['email'],
+                        'phone' => $request->guest_info['phone'],
+                        'password' => Hash::make(Str::random(12)), // Tạo password ngẫu nhiên
+                        'role' => 'customer',
+                        'is_deleted' => 'active',
+                    ]);
+                    
+                    $userId = $newUser->id;
+                }
+                
+                // Thêm user_id vào request để sử dụng cho booking
+                $request->merge(['user_id' => $userId]);
+                
+            } catch (Exception $e) {
+                Log::error('Failed to create guest user: ' . $e->getMessage());
+                return response()->json(['message' => 'Không thể tạo tài khoản khách. Vui lòng thử lại!'], 500);
+            }
+        }
+
+        // Kiểm tra departure nếu có
+        if ($request->departure_id) {
+            $departure = TourDeparture::find($request->departure_id);
+            if (!$departure || $departure->is_deleted === 'inactive') {
+                return response()->json(['message' => 'Ngày khởi hành không tồn tại hoặc đã bị xóa'], 404);
+            }
+
+            if ($departure->status !== 'available') {
+                return response()->json(['message' => 'Ngày khởi hành này không còn khả dụng'], 422);
+            }
+
+            if (!$departure->hasAvailableSeats($request->quantity)) {
+                return response()->json(['message' => 'Không đủ chỗ cho số lượng khách yêu cầu'], 422);
+            }
+
+            // Sử dụng ngày khởi hành từ departure
+            $request->merge(['start_date' => $departure->departure_date]);
         }
 
         // Tính toán ngày kết thúc
@@ -277,6 +372,14 @@ class BookingController extends Controller
 
         $booking = Booking::create($bookingData);
 
+        // Cập nhật booked_count cho departure nếu có
+        if ($request->departure_id) {
+            $departure = TourDeparture::find($request->departure_id);
+            if ($departure) {
+                $departure->updateBookedCount($request->quantity, 'add');
+            }
+        }
+
         // Gửi email xác nhận đặt tour
         try {
             // Tải quan hệ user để có thông tin email
@@ -286,9 +389,29 @@ class BookingController extends Controller
             if ($booking->user && $booking->user->email) {
                 Mail::to($booking->user->email)->send(new BookingCreated($booking));
             }
-        } catch (\Exception $e) {
+                } catch (Exception $e) {
             // Log lỗi nhưng không làm gián đoạn tiến trình
-            \Log::error('Failed to send booking confirmation email: ' . $e->getMessage());
+            Log::error('Failed to send booking confirmation email: ' . $e->getMessage());
+        }
+
+        // Chuẩn bị response data
+        $responseData = [
+            'message' => 'Đặt tour thành công!',
+            'booking_id' => $booking->booking_id,
+            'total_price' => $booking->total_price,
+            'status' => $booking->status,
+        ];
+
+        // Nếu là guest booking, trả về thông tin user mới tạo
+        if ($isGuestBooking) {
+            $user = User::find($userId);
+            $responseData['guest_user'] = [
+                'id' => $user->id,
+                'name' => $user->full_name,
+                'email' => $user->email,
+                'phone' => $user->phone,
+                'message' => 'Tài khoản đã được tạo tự động với email: ' . $user->email
+            ];
         }
 
         // Nếu chọn VNPay thì trả về link thanh toán
@@ -332,24 +455,8 @@ class BookingController extends Controller
             $vnp_SecureHash = hash_hmac('sha512', $hashdata, $vnp_HashSecret);
             $vnp_Url .= "?" . implode('&', $query) . '&vnp_SecureHash=' . $vnp_SecureHash;
 
-            return response()->json([
-                'message' => 'Tạo booking thành công, chuyển sang thanh toán VNPay',
-                'payment_url' => $vnp_Url,
-                'booking' => $booking->load([
-                    'user',
-                    'tour',
-                    'guide',
-                    'hotel',
-                    'busRoute',
-                    'motorbike',
-                    'customTour'
-                ])
-            ], 201);
-        }
-
-        return response()->json([
-            'message' => 'Tạo booking thành công',
-            'booking' => $booking->load([
+            $responseData['payment_url'] = $vnp_Url;
+            $responseData['booking'] = $booking->load([
                 'user',
                 'tour',
                 'guide',
@@ -357,8 +464,22 @@ class BookingController extends Controller
                 'busRoute',
                 'motorbike',
                 'customTour'
-            ])
-        ], 201);
+            ]);
+            
+            return response()->json($responseData, 201);
+        }
+
+        $responseData['booking'] = $booking->load([
+            'user',
+            'tour',
+            'guide',
+            'hotel',
+            'busRoute',
+            'motorbike',
+            'customTour'
+        ]);
+        
+        return response()->json($responseData, 201);
     }
 
     // Cập nhật booking
@@ -511,8 +632,8 @@ class BookingController extends Controller
                     if ($booking->user && $booking->user->email) {
                         Mail::to($booking->user->email)->send(new BookingCreated($booking));
                     }
-                } catch (\Exception $e) {
-                    \Log::error('Failed to send payment success email: ' . $e->getMessage());
+                } catch (Exception $e) {
+                    Log::error('Failed to send payment success email: ' . $e->getMessage());
                 }
 
                 // Chuyển hướng về frontend với thông tin thành công
@@ -540,8 +661,8 @@ class BookingController extends Controller
                         Mail::to($booking->user->email)
                             ->send(new BookingCancelled($booking, 'Thanh toán không thành công'));
                     }
-                } catch (\Exception $e) {
-                    \Log::error('Failed to send payment failed email: ' . $e->getMessage());
+                } catch (Exception $e) {
+                    Log::error('Failed to send payment failed email: ' . $e->getMessage());
                 }
 
                 // Chuyển hướng về frontend với thông tin thất bại
@@ -587,7 +708,7 @@ class BookingController extends Controller
                 'success' => true,
                 'hasBooked' => $hasBooked
             ]);
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             return response()->json([
                 'success' => false,
                 'message' => 'Đã có lỗi khi kiểm tra thông tin booking: ' . $e->getMessage(),
@@ -859,7 +980,7 @@ class BookingController extends Controller
                 'message' => 'Cập nhật dữ liệu xe khách thành công',
                 'data' => $busRoutes
             ]);
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             return response()->json([
                 'success' => false,
                 'message' => 'Lỗi khi cập nhật dữ liệu: ' . $e->getMessage()

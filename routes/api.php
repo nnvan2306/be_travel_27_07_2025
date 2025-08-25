@@ -23,6 +23,7 @@ use App\Http\Controllers\{
     MotorbikeController,
     TourDestinationController,
     TourScheduleController,
+    TourDepartureController,
     BlogController,
     DashboardController,
     SearchController,
@@ -78,6 +79,12 @@ Route::get('/reviews/tour/{tourId}', [ReviewController::class, 'getByTour']);
 
 Route::apiResource('tour-schedules', TourScheduleController::class);
 
+// Tour Departure routes
+Route::apiResource('tour-departures', TourDepartureController::class);
+Route::get('/tour-departures/tour/{tour_id}', [TourDepartureController::class, 'getByTour']);
+Route::get('/tour-departures/{tour_id}/months', [TourDepartureController::class, 'getAvailableMonths']);
+Route::get('/tour-departures/{tour_id}/stats', [TourDepartureController::class, 'getStats']);
+
 Route::get('/hotels', [HotelController::class, 'index']);
 Route::get('/bus-routes', [BusRouteController::class, 'index']);
 Route::get('/motorbikes', [MotorbikeController::class, 'index']);
@@ -86,6 +93,15 @@ Route::get('/guides', [GuideController::class, 'index']);
 // VNPay callback (không cần auth vì VNPay gọi trực tiếp)
 Route::get('vnpay/return', [BookingController::class, 'vnpayReturn']);
 Route::get('/bookings/all', [BookingController::class, 'getAllBookings']);
+
+// ================= GUEST BOOKING ROUTES (KHÔNG CẦN AUTH) =================
+// Guest booking route - phải đặt trước route có parameter để tránh conflict
+Route::post('/bookings', [BookingController::class, 'store']);
+
+// Test route để kiểm tra middleware
+Route::get('/test-auth', function() {
+    return response()->json(['message' => 'Test route không cần auth', 'timestamp' => now()]);
+});
 
 // Blog routes (không cần authentication)
 Route::apiResource('blogs', BlogController::class, );
@@ -151,8 +167,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::put('/profile/update', [UserController::class, 'updateProfile']);
     Route::post('/profile/avatar', [UserController::class, 'updateAvatar']); // Đổi từ PUT sang POST
 
-    // Bookings
-    Route::apiResource('bookings', BookingController::class)->only(['index', 'store', 'show']);
+    // Bookings (chỉ cho user đã đăng nhập)
     Route::get('/bookings/me/my-booking', [BookingController::class, 'myBooking']);
     Route::put('/bookings/{id}/status', [BookingController::class, 'updateStatus']);
 
@@ -218,8 +233,11 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/destinations/trashed', [DestinationController::class, 'trashed']);
     Route::get('/destinations/statistics', [DestinationController::class, 'statistics']);
 
-    // Bookings
-    Route::apiResource('bookings', BookingController::class)->only(['index', 'store', 'update', 'destroy']);
+    // Bookings (chỉ cho admin - không bao gồm store vì đã có route public)
+    Route::get('/bookings', [BookingController::class, 'index']);
+    Route::get('/bookings/{id}', [BookingController::class, 'show']);
+    Route::put('/bookings/{id}', [BookingController::class, 'update']);
+    Route::delete('/bookings/{id}', [BookingController::class, 'destroy']);
     Route::post('/bookings/{id}/soft-delete', [BookingController::class, 'softDelete']);
     Route::get('/bookings/trashed', [BookingController::class, 'trashed']);
 

@@ -14,6 +14,7 @@ class Booking extends Model
     protected $fillable = [
         'user_id',
         'tour_id',
+        'departure_id',
         'guide_id',
         'hotel_id',
         'bus_route_id',
@@ -78,6 +79,14 @@ class Booking extends Model
     public function customTour()
     {
         return $this->belongsTo(CustomTour::class, 'custom_tour_id', 'custom_tour_id');
+    }
+
+    /**
+     * Quan hệ: Booking thuộc về một TourDeparture
+     */
+    public function departure()
+    {
+        return $this->belongsTo(TourDeparture::class, 'departure_id', 'departure_id');
     }
 
     public function promotion()

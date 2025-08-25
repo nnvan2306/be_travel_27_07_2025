@@ -52,6 +52,31 @@ class Tour extends Model
     {
         return $this->hasMany(Booking::class, 'tour_id');
     }
+    
+    /**
+     * Quan hệ: Tour có nhiều TourDeparture
+     */
+    public function departures()
+    {
+        return $this->hasMany(TourDeparture::class, 'tour_id', 'tour_id');
+    }
+    
+    /**
+     * Quan hệ: Tour có nhiều TourDeparture đang hoạt động
+     */
+    public function activeDepartures()
+    {
+        return $this->hasMany(TourDeparture::class, 'tour_id', 'tour_id')->active();
+    }
+    
+    /**
+     * Quan hệ: Tour có nhiều TourDeparture có sẵn
+     */
+    public function availableDepartures()
+    {
+        return $this->hasMany(TourDeparture::class, 'tour_id', 'tour_id')->active()->available();
+    }
+    
     public function ratings()
     {
         return $this->morphMany(Rating::class, 'rateable');
