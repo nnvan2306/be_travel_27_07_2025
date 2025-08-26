@@ -340,3 +340,14 @@ Route::get('/debug-promotions-table', function () {
         'columns' => \Schema::getColumnListing('promotions')
     ]);
 });
+
+// User management routes
+Route::middleware(['auth:sanctum'])->group(function () {
+    Route::get('/users', [UserController::class, 'index']);
+    Route::get('/user/{id}', [UserController::class, 'show']);
+    Route::post('/user', [UserController::class, 'store']);
+    Route::put('/user/{id}', [UserController::class, 'update']);
+    Route::delete('/user/{id}', [UserController::class, 'destroy']);
+    Route::put('/user/{id}/soft-delete', [UserController::class, 'softDelete']);
+    Route::put('/user/{id}/reset-password', [UserController::class, 'resetPassword']);
+});

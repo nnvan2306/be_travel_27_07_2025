@@ -792,8 +792,7 @@ class BookingController extends Controller
             'start_date' => 'required|date',
             'end_date' => 'required|date|after_or_equal:start_date',
             'quantity' => 'required|integer|min:1',
-            'bus_route_id' => 'nullable|exists:bus_routes,bus_route_id',
-            'motorbike_id' => 'nullable|exists:motorbikes,motorbike_id',
+            'tour_id' => 'required|exists:tours,tour_id',
         ]);
 
         if ($validator->fails()) {
@@ -804,16 +803,155 @@ class BookingController extends Controller
             ], 422);
         }
 
-        $validationData = $request->only([
-            'start_date', 'end_date', 'quantity', 'bus_route_id', 'motorbike_id'
-        ]);
+        try {
+            // Lấy thông tin tour
+            $tour = \App\Models\Tour::find($request->tour_id);
+            if (!$tour) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Tour không tồn tại'
+                ], 404);
+            }
 
-        $result = $this->bookingValidationService->validateBookingServices($validationData);
+            // Kiểm tra số người tối thiểu
+            if ($request->quantity < $tour->min_people) {
+                return response()->json([
+                    'success' => false,
+                    'message' => "Số người tối thiểu để đặt tour này là {$tour->min_people} người. Bạn đã chọn {$request->quantity} người.",
+                    'data' => [
+                        'min_people_required' => $tour->min_people,
+                        'current_quantity' => $request->quantity,
+                        'tour_name' => $tour->name
+                    ]
+                ], 400);
+            }
 
-        return response()->json([
-            'success' => true,
-            'data' => $result
-        ]);
+            // Sử dụng AutoServiceSelectionService để tự động chọn dịch vụ
+            $autoServiceSelection = app(\App\Services\AutoServiceSelectionService::class);
+            
+            $selectedServices = $autoServiceSelection->autoSelectServices(
+                $request->tour_id,
+                $request->start_date,
+                $request->end_date,
+                $request->quantity
+            );
+
+            // Tính toán tổng giá
+            $basePrice = $tour->price;
+            $totalPrice = $basePrice * $request->quantity;
+            
+            // Thêm giá dịch vụ
+            $servicesPrice = 0;
+            $servicesDetails = [];
+            
+            foreach ($selectedServices as $type => $service) {
+                switch ($type) {
+                    case 'guide':
+                        $servicesPrice += $service->price_per_day * $this->calculateDays($request->start_date, $request->end_date);
+                        $servicesDetails[] = [
+                            'type' => 'guide',
+                            'id' => $service->guide_id,
+                            'name' => $service->name,
+                            'price' => $service->price_per_day,
+                            'total_price' => $service->price_per_day * $this->calculateDays($request->start_date, $request->end_date),
+                            'description' => $service->description ?? 'Hướng dẫn viên chuyên nghiệp'
+                        ];
+                        break;
+                    case 'hotel':
+                        $servicesPrice += $service->price * $this->calculateDays($request->start_date, $request->end_date);
+                        $servicesDetails[] = [
+                            'type' => 'hotel',
+                            'id' => $service->hotel_id,
+                            'name' => $service->name,
+                            'price' => $service->price,
+                            'total_price' => $service->price * $this->calculateDays($request->start_date, $request->end_date),
+                            'description' => $service->description ?? 'Khách sạn tiện nghi'
+                        ];
+                        break;
+                    case 'bus':
+                        $servicesPrice += $service->price;
+                        $servicesDetails[] = [
+                            'type' => 'bus',
+                            'id' => $service->bus_route_id,
+                            'name' => $service->route_name,
+                            'price' => $service->price,
+                            'total_price' => $service->price,
+                            'description' => $service->description ?? 'Xe khách an toàn'
+                        ];
+                        break;
+                    case 'motorbike':
+                        // Xử lý trường hợp xe máy có thể là collection
+                        if (is_array($service) || $service instanceof \Illuminate\Support\Collection) {
+                            foreach ($service as $bike) {
+                                $servicesPrice += $bike->price_per_day * $this->calculateDays($request->start_date, $request->end_date);
+                                $servicesDetails[] = [
+                                    'type' => 'motorbike',
+                                    'id' => $bike->motorbike_id,
+                                    'name' => $bike->bike_type,
+                                    'price' => $bike->price_per_day,
+                                    'total_price' => $bike->price_per_day * $this->calculateDays($request->start_date, $request->end_date),
+                                    'description' => $bike->description ?? 'Xe máy bảo hiểm đầy đủ'
+                                ];
+                            }
+                        } else {
+                            // Trường hợp xe máy đơn lẻ
+                            $servicesPrice += $service->price_per_day * $this->calculateDays($request->start_date, $request->end_date);
+                            $servicesDetails[] = [
+                                'type' => 'motorbike',
+                                'id' => $service->motorbike_id,
+                                'name' => $service->bike_type,
+                                'price' => $service->price_per_day,
+                                'total_price' => $service->price_per_day * $this->calculateDays($request->start_date, $request->end_date),
+                                'description' => $service->description ?? 'Xe máy bảo hiểm đầy đủ'
+                            ];
+                        }
+                        break;
+                }
+            }
+
+            $totalPrice += $servicesPrice;
+
+            return response()->json([
+                'success' => true,
+                'data' => [
+                    'available' => true,
+                    'tour_info' => [
+                        'tour_id' => $request->tour_id,
+                        'tour_name' => $tour->name,
+                        'base_price' => $basePrice,
+                        'quantity' => $request->quantity,
+                        'base_total' => $basePrice * $request->quantity,
+                        'min_people' => $tour->min_people,
+                        'min_people_met' => $request->quantity >= $tour->min_people
+                    ],
+                    'auto_selected_services' => $selectedServices,
+                    'services_details' => $servicesDetails,
+                    'services_price' => $servicesPrice,
+                    'total_price' => $totalPrice,
+                    'start_date' => $request->start_date,
+                    'end_date' => $request->end_date,
+                    'message' => 'Các dịch vụ đã được tự động chọn phù hợp với yêu cầu của bạn'
+                ]
+            ]);
+
+        } catch (\Exception $e) {
+            \Log::error('Error checking booking availability: ' . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'message' => 'Có lỗi xảy ra khi kiểm tra khả năng đặt tour',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Tính số ngày giữa start_date và end_date
+     */
+    private function calculateDays($startDate, $endDate)
+    {
+        $start = \Carbon\Carbon::parse($startDate);
+        $end = \Carbon\Carbon::parse($endDate);
+        return $start->diffInDays($end) + 1;
     }
 
     /**

@@ -209,7 +209,10 @@ class TourController extends Controller
         ])->findOrFail($id);
 
         if ($tour->is_deleted === self::STATUS_INACTIVE) {
-            return response()->json(['message' => 'Tour đã bị xoá'], 404);
+            return response()->json([
+                'success' => false,
+                'message' => 'Tour đã bị xoá'
+            ], 404);
         }
 
         $schedules = $tour->schedules->map(function ($schedule) {
@@ -220,7 +223,10 @@ class TourController extends Controller
         $tourArray = $tour->toArray();
         $tourArray['schedules'] = $schedules;
 
-        return response()->json($tourArray);
+        return response()->json([
+            'success' => true,
+            'data' => $tourArray
+        ]);
     }
 
     // Cập nhật tour

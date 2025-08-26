@@ -320,4 +320,32 @@ class UserController extends Controller
         ]);
     }
 
+    // Cấp lại mật khẩu cho user
+    public function resetPassword(Request $request, $id)
+    {
+        $user = User::find($id);
+        if (!$user) {
+            return response()->json(['message' => 'Không tìm thấy user'], 404);
+        }
+
+        $currentUser = Auth::user();
+
+        // Chỉ admin và staff được reset password
+        if (!in_array($currentUser->role, ['admin', 'staff'])) {
+            return response()->json(['message' => 'Không có quyền cấp lại mật khẩu'], 403);
+        }
+
+        $this->authorize('update', $user);
+
+        // Reset password về 12345678
+        $user->password = Hash::make('12345678');
+        $user->save();
+
+        return response()->json([
+            'message' => 'Đã cấp lại mật khẩu thành công',
+            'user_id' => $user->id,
+            'new_password' => '12345678'
+        ]);
+    }
+
 }

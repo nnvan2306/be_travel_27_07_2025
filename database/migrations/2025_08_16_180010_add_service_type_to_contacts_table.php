@@ -11,7 +11,7 @@ return new class extends Migration {
     public function up(): void
     {
         Schema::table('contacts', function (Blueprint $table) {
-            $table->string('service_type')->after('id')->nullable();
+            $table->string('service_type')->after('contact_id')->nullable();
 
             // Kiểm tra và thêm các cột khác nếu chưa tồn tại
             if (!Schema::hasColumn('contacts', 'full_name')) {
