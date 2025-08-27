@@ -66,18 +66,39 @@ class AlbumImageController extends Controller
         return response()->json(['message' => 'Cập nhật trạng thái ảnh thành công', 'image' => $image]);
     }
 
-    public function destroy($imageId)
+    public function destroy($albumId, $imageId)
     {
         $image = AlbumImage::where('image_id', $imageId)->first();
         if (!$image)
             return response()->json(['message' => 'Không tìm thấy ảnh'], 404);
 
+        // Xóa file thực tế trước
         if (Storage::disk('public')->exists($image->image_url)) {
             Storage::disk('public')->delete($image->image_url);
         }
-        $image->delete();
+        
+        // Sử dụng soft delete thay vì hard delete
+        $image->is_deleted = 'inactive';
+        $image->save();
 
         return response()->json(['message' => 'Xóa ảnh thành công']);
+    }
+
+    public function forceDelete($imageId)
+    {
+        $image = AlbumImage::where('image_id', $imageId)->first();
+        if (!$image)
+            return response()->json(['message' => 'Không tìm thấy ảnh'], 404);
+
+        // Xóa file thực tế trước
+        if (Storage::disk('public')->exists($image->image_url)) {
+            Storage::disk('public')->delete($image->image_url);
+        }
+        
+        // Xóa hoàn toàn khỏi database
+        $image->delete();
+
+        return response()->json(['message' => 'Xóa ảnh hoàn toàn thành công']);
     }
 
     public function trashed($albumId)
@@ -87,5 +108,55 @@ class AlbumImageController extends Controller
             return $img;
         });
         return response()->json($images);
+    }
+
+    public function show($albumId, $imageId)
+    {
+        $image = AlbumImage::where('album_id', $albumId)
+            ->where('image_id', $imageId)
+            ->where('is_deleted', 'active')
+            ->first();
+            
+        if (!$image) {
+            return response()->json(['message' => 'Không tìm thấy ảnh'], 404);
+        }
+
+        $image->image_url_full = asset('storage/' . $image->image_url);
+        return response()->json($image);
+    }
+
+    public function update(Request $request, $albumId, $imageId)
+    {
+        $image = AlbumImage::where('album_id', $albumId)
+            ->where('image_id', $imageId)
+            ->where('is_deleted', 'active')
+            ->first();
+            
+        if (!$image) {
+            return response()->json(['message' => 'Không tìm thấy ảnh'], 404);
+        }
+
+        $request->validate([
+            'caption' => 'nullable|string|max:255'
+        ]);
+
+        $image->caption = $request->caption;
+        $image->save();
+
+        $image->image_url_full = asset('storage/' . $image->image_url);
+        return response()->json(['message' => 'Cập nhật ảnh thành công', 'image' => $image]);
+    }
+
+    public function statistics($albumId)
+    {
+        $totalImages = AlbumImage::where('album_id', $albumId)->count();
+        $activeImages = AlbumImage::where('album_id', $albumId)->where('is_deleted', 'active')->count();
+        $inactiveImages = AlbumImage::where('album_id', $albumId)->where('is_deleted', 'inactive')->count();
+
+        return response()->json([
+            'total_images' => $totalImages,
+            'active_images' => $activeImages,
+            'inactive_images' => $inactiveImages
+        ]);
     }
 }

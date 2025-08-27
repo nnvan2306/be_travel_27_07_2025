@@ -212,15 +212,16 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // Album Images
     Route::prefix('albums/{albumId}/images')->group(function () {
-        Route::get('/', [AlbumImageController::class, 'index']);
-        Route::post('/', [AlbumImageController::class, 'store']);
-        Route::get('/{imageId}', [AlbumImageController::class, 'show']);
-        Route::post('/{imageId}', [AlbumImageController::class, 'update']);
-        Route::post('/{imageId}/soft-delete', [AlbumImageController::class, 'softDelete']);
-        Route::delete('/{imageId}', [AlbumImageController::class, 'destroy']);
-        Route::get('/trashed', [AlbumImageController::class, 'trashed']);
-        Route::get('/statistics', [AlbumImageController::class, 'statistics']);
-    });
+    Route::get('/', [AlbumImageController::class, 'index']);
+    Route::post('/', [AlbumImageController::class, 'store']);
+    Route::get('/{imageId}', [AlbumImageController::class, 'show']);
+    Route::post('/{imageId}', [AlbumImageController::class, 'update']);
+    Route::post('/{imageId}/soft-delete', [AlbumImageController::class, 'softDelete']);
+    Route::delete('/{imageId}', [AlbumImageController::class, 'destroy']);
+    Route::delete('/{imageId}/force', [AlbumImageController::class, 'forceDelete']);
+    Route::get('/trashed', [AlbumImageController::class, 'trashed']);
+    Route::get('/statistics', [AlbumImageController::class, 'statistics']);
+});
 
     // Destination Categories
     Route::apiResource('destination-categories', DestinationCategoryController::class)->only(['store', 'update', 'destroy']);
