@@ -49,7 +49,6 @@ class BusRouteController extends Controller
     public function store(Request $request)
     {
         $validated = $request->validate([
-            'route_name' => 'required|string|max:255',
             'vehicle_type' => 'required|string|max:100',
             'price' => 'required|numeric|min:0',
             'seats' => 'required|integer|min:1',
@@ -61,7 +60,7 @@ class BusRouteController extends Controller
         $albumId = null;
 
         if ($request->hasFile('image')) {
-            $album = Album::create(['title' => 'Album cho tuyến ' . $validated['route_name']]);
+            $album = Album::create(['title' => 'Album cho tuyến xe']);
             $albumId = $album->album_id;
 
             $imagePath = $request->file('image')->store("albums/{$albumId}", 'public');

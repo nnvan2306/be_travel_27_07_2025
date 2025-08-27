@@ -57,7 +57,6 @@ class HotelController extends Controller
         try {
             $validated = $request->validate([
                 'name' => 'required|string|max:255',
-                'location' => 'nullable|string|max:255',
                 'room_type' => 'nullable|string|max:100',
                 'price' => 'required|numeric|min:0',
                 'description' => 'nullable|string',
@@ -85,7 +84,6 @@ class HotelController extends Controller
 
             $hotel = Hotel::create([
                 'name' => $validated['name'],
-                'location' => $validated['location'],
                 'room_type' => $validated['room_type'],
                 'price' => $validated['price'],
                 'description' => $validated['description'],
@@ -120,7 +118,6 @@ class HotelController extends Controller
         try {
             $validated = $request->validate([
                 'name' => 'sometimes|string|max:255',
-                'location' => 'sometimes|string|max:255',
                 'room_type' => 'nullable|string|max:100',
                 'price' => 'sometimes|numeric|min:0',
                 'description' => 'nullable|string',

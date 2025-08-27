@@ -52,7 +52,6 @@ class MotorbikeController extends Controller
         $validated = $request->validate([
             'bike_type' => 'required|string|max:100',
             'price_per_day' => 'required|numeric|min:0|max:99999999.99',
-            'location' => 'required|string|max:255',
             'license_plate' => 'nullable|string|max:20',
             'description' => 'nullable|string',
             'rental_status' => 'required|in:available,rented,maintenance',
@@ -104,7 +103,6 @@ class MotorbikeController extends Controller
         $validated = $request->validate([
             'bike_type' => 'sometimes|string|max:100',
             'price_per_day' => 'sometimes|numeric|min:0|max:99999999.99',
-            'location' => 'sometimes|string|max:255',
             'license_plate' => 'nullable|string|max:20',
             'description' => 'nullable|string',
             'rental_status' => 'sometimes|in:available,rented,maintenance',
@@ -140,7 +138,6 @@ class MotorbikeController extends Controller
         $motorbike->fill($request->only([
             'bike_type',
             'price_per_day',
-            'location',
             'license_plate',
             'description',
             'rental_status',
