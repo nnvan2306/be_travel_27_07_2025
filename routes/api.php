@@ -104,6 +104,7 @@ Route::get('/test-auth', function() {
 });
 
 // Blog routes (không cần authentication)
+Route::get('/blogs/featured', [BlogController::class, 'getFeaturedBlog']);
 Route::apiResource('blogs', BlogController::class, );
 Route::get('/blogs/slug/{slug}', [BlogController::class, 'showBySlug']);
 Route::get('/blogs/published', [BlogController::class, 'published']);

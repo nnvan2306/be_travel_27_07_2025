@@ -163,6 +163,27 @@ class BlogController extends Controller
             'data' => $blog->fresh() // Lấy dữ liệu mới nhất sau khi tăng view
         ]);
     }
+// get view cao nhat
+    public function getFeaturedBlog()
+{
+    $blog = \App\Models\Blog::where('status', 'published')
+        ->orderByDesc('view_count')
+        ->first();
+
+    if (!$blog) {
+        return response()->json([
+            'success' => false,
+            'message' => 'Không tìm thấy blog nổi bật',
+            'data' => null
+        ], 404);
+    }
+
+    return response()->json([
+        'success' => true,
+        'message' => 'Blog nổi bật',
+        'data' => $blog
+    ]);
+}
 
     /**
      * Show blog by slug

@@ -158,7 +158,7 @@ class SearchController extends Controller
     public function searchBlogs(Request $request)
     {
         $request->validate([
-            'q' => 'required|string|min:2',
+        'q' => 'nullable|string', // Không required, không min
             'limit' => 'nullable|integer|min:1|max:50',
             'page' => 'nullable|integer|min:1',
             'tags' => 'nullable|string',
@@ -166,7 +166,7 @@ class SearchController extends Controller
             'sort_dir' => 'nullable|string|in:asc,desc',
         ]);
 
-        $searchQuery = $request->input('q');
+        $searchQuery = $request->input('q','');
         $limit = $request->input('limit', 10);
         $page = $request->input('page', 1);
         $tags = $request->input('tags');
